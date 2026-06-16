@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase, AdminProfile, UserProfile } from '../lib/supabase';
-import type { User } from '@supabase/supabase-js';
+import type { User, RealtimeChannel } from '@supabase/supabase-js';
 
 type AuthContextType = {
   user: User | null;
@@ -37,7 +37,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const sessionChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const sessionChannelRef = useRef<RealtimeChannel | null>(null);
 
   async function fetchProfile(uid: string) {
     const { data: adminData } = await supabase.from('admin_profiles').select('*').eq('id', uid).maybeSingle();
