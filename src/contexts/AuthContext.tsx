@@ -158,21 +158,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signIn(username: string, password: string) {
     const email = usernameToEmail(username);
-    // Clear any stale local session before attempting login
     await supabase.auth.signOut({ scope: 'local' });
+    
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      // If session limit hit, wipe all sessions for this user and retry once
-      if (error.message?.toLowerCase().includes('session') && error.message?.toLowerCase().includes('limit')) {
-        await supabase.auth.signOut({ scope: 'local' });
-        const retry = await supabase.auth.signInWithPassword({ email, password });
-        if (retry.error) return { error: retry.error.message };
-        return { error: null };
-      }
-      console.error('[signIn admin] error:', error.message, error);
-      return { error: error.message };
+    if (!error) return { error: null };
+    
+    if (error.message?.toLowerCase().includes('session') && error.message?.toLowerCase().includes('limit')) {
+      await supabase.auth.signOut({ scope: 'local' });
+      const retry = await supabase.auth.signInWithPassword({ email, password });
+      if (!retry.error) return { error: null };
     }
-    return { error: null };
+    
+    console.warn('[signIn admin] Supabase auth failed, trying local verification:', error.message);
+    
+    const { data: verifyResult } = await supabase.rpc('verify_admin', {
+      username: username,
+      password: password,
+    });
+    
+    if (!verifyResult?.ok) {
+      return { error: '登录失败，请检查用户名和密码' };
+    }
+    
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    const existingUser = (existingUsers?.users ?? []).find((u: any) => u.email === email);
+    
+    if (existingUser) {
+      await supabase.auth.admin.updateUserById(existingUser.id, {
+        password: password,
+        email_confirmed_at: new Date().toISOString(),
+      });
+      
+      const { error: retryError } = await supabase.auth.signInWithPassword({ email, password });
+      if (!retryError) return { error: null };
+    }
+    
+    return { error: '登录失败，请检查用户名和密码' };
   }
 
   async function signInClient(username: string, password: string) {
