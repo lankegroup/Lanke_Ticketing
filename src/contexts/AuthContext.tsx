@@ -169,10 +169,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: '登录失败，请检查用户名和密码' };
     }
     
-    const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string;
-    
     try {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
+      const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string;
+      
+      if (!serviceRoleKey) {
+        return { error: '系统配置错误，请联系管理员' };
+      }
+      
+      const listRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${serviceRoleKey}`,
@@ -180,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         },
       });
       
-      const usersResult = await res.json();
+      const usersResult = await listRes.json();
       const existingUser = usersResult?.users?.find((u: any) => u.email === email);
       
       if (existingUser) {
