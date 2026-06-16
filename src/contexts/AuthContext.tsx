@@ -37,7 +37,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const sessionChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const sessionChannelRef = useRef<ReturnType<typeof supabase?.channel> | null>(null);
+
+  if (!supabase) {
+    return (
+      <AuthContext.Provider value={{
+        user: null,
+        profile: null,
+        userProfile: null,
+        isAdmin: false,
+        loading: false,
+        signIn: async () => ({ error: 'Supabase not configured' }),
+        signInClient: async () => ({ error: 'Supabase not configured' }),
+        signOut: async () => {},
+        refreshProfile: async () => {},
+        refreshUserProfile: async () => {},
+      }}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
 
   async function fetchProfile(uid: string) {
     const { data: adminData } = await supabase.from('admin_profiles').select('*').eq('id', uid).maybeSingle();

@@ -1,9 +1,23 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const envConfig = {
+  supabaseUrl: supabaseUrl || '',
+  supabaseAnonKey: supabaseAnonKey || '',
+  hasValidConfig: !!(supabaseUrl && supabaseAnonKey),
+};
+
+let supabaseInstance: SupabaseClient | null = null;
+
+if (envConfig.hasValidConfig) {
+  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey);
+} else {
+  console.error('[Supabase] Environment variables VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are required');
+}
+
+export const supabase = supabaseInstance;
 
 /** Convert Chinese seat name format "A排1座" to English "Row A, Seat 1" */
 export function formatSeatName(seatName: string, isEn: boolean): string {
