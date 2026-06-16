@@ -1,0 +1,3 @@
+
+ALTER TABLE sessions
+  ADD COLUMN IF NOT EXISTS booking_notice TEXT NOT NULL DEFAULT '';

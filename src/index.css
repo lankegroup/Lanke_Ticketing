@@ -1,0 +1,157 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  background-color: #f9fafb;
+  overscroll-behavior-y: contain;
+}
+
+.en-font {
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Quill editor overrides */
+.ql-container {
+  font-size: 14px !important;
+  font-family: inherit !important;
+  border: none !important;
+}
+.ql-toolbar {
+  border: none !important;
+  border-bottom: 1px solid #e5e7eb !important;
+  background: #f9fafb;
+}
+.ql-editor {
+  min-height: 200px;
+  padding: 12px 16px !important;
+}
+
+/* Prose styles for rendered HTML */
+.prose h1, .prose h2, .prose h3 {
+  font-weight: 700;
+  color: #111827;
+  margin-top: 1.25em;
+  margin-bottom: 0.5em;
+}
+.prose h1 { font-size: 1.5rem; }
+.prose h2 { font-size: 1.25rem; }
+.prose h3 { font-size: 1.1rem; }
+.prose p { margin-bottom: 0.75em; line-height: 1.7; }
+.prose ul { list-style: disc; padding-left: 1.5em; margin-bottom: 0.75em; }
+.prose ol { list-style: decimal; padding-left: 1.5em; margin-bottom: 0.75em; }
+.prose li { margin-bottom: 0.25em; }
+.prose img { max-width: 100%; border-radius: 0.75rem; margin: 0.75em 0; }
+.prose a { color: #0ea5e9; text-decoration: underline; }
+
+/* Quill content renderer — applied to client-side description display */
+.quill-content {
+  line-height: 1.75;
+  color: #374151;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.quill-content p { margin-bottom: 0.75em; }
+.quill-content p:last-child { margin-bottom: 0; }
+.quill-content h1 { font-size: 1.5rem; font-weight: 700; color: #111827; margin: 1em 0 0.5em; }
+.quill-content h2 { font-size: 1.25rem; font-weight: 700; color: #111827; margin: 1em 0 0.5em; }
+.quill-content h3 { font-size: 1.1rem; font-weight: 600; color: #111827; margin: 0.8em 0 0.4em; }
+.quill-content ul { list-style: disc; padding-left: 1.5em; margin-bottom: 0.75em; }
+.quill-content ol { list-style: decimal; padding-left: 1.5em; margin-bottom: 0.75em; }
+.quill-content li { margin-bottom: 0.25em; line-height: 1.7; }
+.quill-content blockquote { border-left: 3px solid #d1d5db; padding-left: 1em; color: #6b7280; margin: 0.75em 0; font-style: italic; }
+.quill-content img { max-width: 100%; border-radius: 0.75rem; margin: 0.75em 0; display: block; }
+.quill-content a { color: #0ea5e9; text-decoration: underline; }
+.quill-content strong { font-weight: 700; }
+.quill-content em { font-style: italic; }
+.quill-content u { text-decoration: underline; }
+.quill-content s { text-decoration: line-through; }
+/* Quill size classes */
+.quill-content .ql-size-small { font-size: 0.75em; }
+.quill-content .ql-size-large { font-size: 1.5em; }
+.quill-content .ql-size-huge  { font-size: 2em; }
+/* Quill alignment classes */
+.quill-content .ql-align-center  { text-align: center; }
+.quill-content .ql-align-right   { text-align: right; }
+.quill-content .ql-align-justify { text-align: justify; }
+/* Quill indent classes */
+.quill-content .ql-indent-1 { padding-left: 2em; }
+.quill-content .ql-indent-2 { padding-left: 4em; }
+.quill-content .ql-indent-3 { padding-left: 6em; }
+.quill-content .ql-indent-4 { padding-left: 8em; }
+/* Quill color/background inline styles pass through natively */
+
+/* Safe area insets */
+.pt-safe-top { padding-top: env(safe-area-inset-top, 0); }
+.pb-safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+
+/* Spinner */
+.border-3 { border-width: 3px; }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translate(-50%, -8px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.animate-fade-in { animation: fade-in 0.2s ease-out; }
+
+/* QR scanner */
+#qr-reader video { width: 100% !important; }
+#qr-reader__scan_region { background: transparent !important; }
+#qr-reader__dashboard { padding: 8px !important; }
+#qr-reader__dashboard_section_csr button {
+  background: #0ea5e9 !important;
+  color: white !important;
+  border-radius: 12px !important;
+  border: none !important;
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+}
+
+/* ── KioskMode: override html5-qrcode rendering ───────────────────────────── */
+#kiosk-qr-reader,
+#kiosk-qr-reader > div,
+#kiosk-qr-reader__scan_region {
+  width: 100% !important;
+  height: 100% !important;
+  padding: 0 !important;
+  border: none !important;
+  background: transparent !important;
+}
+#kiosk-qr-reader video {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+/* Hide html5-qrcode's built-in shading / SVG overlay */
+#kiosk-qr-reader img,
+#kiosk-qr-reader svg { display: none !important; }
+
+/* Animated scan line */
+@keyframes kiosk-scan {
+  0%   { top: 14%; opacity: 0.9; }
+  50%  { opacity: 1; }
+  100% { top: 86%; opacity: 0.9; }
+}
+.kiosk-scan-line {
+  position: absolute;
+  animation: kiosk-scan 2.4s ease-in-out infinite alternate;
+}
+
+/* Result flash border */
+@keyframes kiosk-flash {
+  0%   { opacity: 1;   transform: scale(1.015); }
+  40%  { opacity: 1;   transform: scale(1); }
+  100% { opacity: 0.2; transform: scale(1); }
+}
+.kiosk-result-flash {
+  animation: kiosk-flash 1.6s ease-out forwards;
+}

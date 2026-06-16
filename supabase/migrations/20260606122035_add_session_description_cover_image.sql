@@ -1,0 +1,3 @@
+ALTER TABLE sessions
+  ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '',
+  ADD COLUMN IF NOT EXISTS cover_image TEXT;
