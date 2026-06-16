@@ -160,17 +160,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const email = usernameToEmail(username);
     await supabase.auth.signOut({ scope: 'local' });
     
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (!error) return { error: null };
-    
-    if (error.message?.toLowerCase().includes('session') && error.message?.toLowerCase().includes('limit')) {
-      await supabase.auth.signOut({ scope: 'local' });
-      const retry = await supabase.auth.signInWithPassword({ email, password });
-      if (!retry.error) return { error: null };
-    }
-    
-    console.warn('[signIn admin] Supabase auth failed, trying local verification:', error.message);
-    
     const { data: verifyResult } = await supabase.rpc('verify_admin', {
       username: username,
       password: password,
@@ -180,20 +169,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { error: '登录失败，请检查用户名和密码' };
     }
     
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const existingUser = (existingUsers?.users ?? []).find((u: any) => u.email === email);
+    const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string;
     
-    if (existingUser) {
-      await supabase.auth.admin.updateUserById(existingUser.id, {
-        password: password,
-        email_confirmed_at: new Date().toISOString(),
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+        },
       });
       
-      const { error: retryError } = await supabase.auth.signInWithPassword({ email, password });
-      if (!retryError) return { error: null };
+      const usersResult = await res.json();
+      const existingUser = usersResult?.users?.find((u: any) => u.email === email);
+      
+      if (existingUser) {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users/${existingUser.id}`, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ password, email_confirmed_at: new Date().toISOString() }),
+        });
+      } else {
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${serviceRoleKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ email, password, email_confirm: true }),
+        });
+      }
+      
+      await new Promise(r => setTimeout(r, 500));
+      
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (!error) return { error: null };
+      
+      return { error: '登录失败，请检查用户名和密码' };
+    } catch (e: any) {
+      console.error('[signIn admin] API error:', e.message);
+      return { error: '登录失败，请检查网络连接' };
     }
-    
-    return { error: '登录失败，请检查用户名和密码' };
   }
 
   async function signInClient(username: string, password: string) {
