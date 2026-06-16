@@ -162,63 +162,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     try {
       const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       
-      if (!serviceRoleKey) {
-        return { error: '系统配置错误，请联系管理员' };
+      if (!supabaseUrl) {
+        return { error: '系统配置错误：未配置 Supabase URL' };
       }
       
-      const listRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${serviceRoleKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      let userId: string | null = null;
+      let userCreated = false;
       
-      const usersResult = await listRes.json();
-      const existingUser = usersResult?.users?.find((u: any) => u.email === email);
-      
-      let userId: string;
-      
-      if (existingUser) {
-        userId = existingUser.id;
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
-          method: 'PUT',
+      if (serviceRoleKey) {
+        const listRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${serviceRoleKey}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ password, email_confirmed_at: new Date().toISOString() }),
         });
-      } else {
-        const createRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${serviceRoleKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ email, password, email_confirm: true }),
-        });
-        const createResult = await createRes.json();
-        userId = createResult.id;
+        
+        const usersResult = await listRes.json();
+        const existingUser = usersResult?.users?.find((u: any) => u.email === email);
+        
+        if (existingUser) {
+          userId = existingUser.id;
+          await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${serviceRoleKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ password, email_confirmed_at: new Date().toISOString() }),
+          });
+        } else {
+          const createRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${serviceRoleKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password, email_confirm: true }),
+          });
+          const createResult = await createRes.json();
+          userId = createResult.id;
+          userCreated = true;
+        }
+        
+        await new Promise(r => setTimeout(r, 500));
+        
+        if (userId) {
+          await supabase.from('admin_profiles').upsert(
+            { id: userId, username: username.toUpperCase() },
+            { onConflict: 'username' }
+          );
+        }
+        
+        await new Promise(r => setTimeout(r, 300));
       }
-      
-      await new Promise(r => setTimeout(r, 500));
-      
-      await supabase.from('admin_profiles').upsert(
-        { id: userId, username: username.toUpperCase() },
-        { onConflict: 'username' }
-      );
-      
-      await new Promise(r => setTimeout(r, 300));
       
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (!error) return { error: null };
       
-      return { error: '登录失败，请检查用户名和密码' };
+      if (error.message?.includes('Invalid login credentials')) {
+        return { error: '用户名或密码错误，请使用 LANKE / 88888888' };
+      }
+      
+      if (error.message?.includes('Session limit exceeded')) {
+        return { error: '登录设备已达上限，请清除旧会话后重试' };
+      }
+      
+      return { error: `登录失败: ${error.message}` };
     } catch (e: any) {
       console.error('[signIn admin] API error:', e.message);
-      return { error: '登录失败，请检查网络连接' };
+      
+      if (e.message?.includes('Failed to fetch')) {
+        return { error: '网络连接失败，请检查网络' };
+      }
+      
+      return { error: `登录失败: ${e.message}` };
     }
   }
 
