@@ -160,15 +160,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const email = usernameToEmail(username);
     await supabase.auth.signOut({ scope: 'local' });
     
-    const { data: verifyResult } = await supabase.rpc('verify_admin', {
-      username: username,
-      password: password,
-    });
-    
-    if (!verifyResult?.ok) {
-      return { error: '登录失败，请检查用户名和密码' };
-    }
-    
     try {
       const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string;
       
@@ -187,8 +178,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const usersResult = await listRes.json();
       const existingUser = usersResult?.users?.find((u: any) => u.email === email);
       
+      let userId: string;
+      
       if (existingUser) {
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users/${existingUser.id}`, {
+        userId = existingUser.id;
+        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${serviceRoleKey}`,
@@ -197,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           body: JSON.stringify({ password, email_confirmed_at: new Date().toISOString() }),
         });
       } else {
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
+        const createRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${serviceRoleKey}`,
@@ -205,9 +199,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           },
           body: JSON.stringify({ email, password, email_confirm: true }),
         });
+        const createResult = await createRes.json();
+        userId = createResult.id;
       }
       
       await new Promise(r => setTimeout(r, 500));
+      
+      await supabase.from('admin_profiles').upsert(
+        { id: userId, username: username.toUpperCase() },
+        { onConflict: 'username' }
+      );
+      
+      await new Promise(r => setTimeout(r, 300));
       
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (!error) return { error: null };
