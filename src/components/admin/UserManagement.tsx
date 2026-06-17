@@ -83,33 +83,60 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
     if (!formUsername.trim() || !formPassword.trim() || !formPhone.trim()) return;
     setCreating(true);
     try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`;
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(url, {
+      const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+      if (!serviceRoleKey) {
+        showToast('系统配置错误', 'error');
+        setCreating(false);
+        return;
+      }
+
+      const phoneDigits = formPhone.trim().replace(/\D/g, '');
+      const email = `${phoneDigits}@user.ticketing.local`;
+
+      const createRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({
-          username: formUsername.trim(),
+          email,
           password: formPassword,
+          email_confirm: true,
+        }),
+      });
+
+      const createData = await createRes.json();
+      if (!createRes.ok) {
+        showToast(createData.msg || createData.message || t('create_user_failed'), 'error');
+        setCreating(false);
+        return;
+      }
+
+      const userId = createData.id;
+
+      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_profiles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'Prefer': 'return=representation',
+        },
+        body: JSON.stringify({
+          id: userId,
           display_name: formUsername.trim(),
           phone: formPhone.trim(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        showToast(data.error || t('create_user_failed'), 'error');
-      } else {
-        showToast(t('user_created'));
-        setFormUsername('');
-        setFormPassword('');
-        setFormPhone('');
-        setShowForm(false);
-        await fetchUsers();
-      }
+
+      showToast(t('user_created'));
+      setFormUsername('');
+      setFormPassword('');
+      setFormPhone('');
+      setShowForm(false);
+      await fetchUsers();
     } catch (e: any) {
       showToast(e.message || t('create_user_failed'), 'error');
     }
@@ -118,20 +145,24 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
 
   async function handleDelete(uid: string) {
     try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`;
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(url, {
-        method: 'POST',
+      const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+      if (!serviceRoleKey) {
+        showToast('系统配置错误', 'error');
+        setConfirm(null);
+        return;
+      }
+
+      const deleteRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/auth/v1/admin/users/${uid}`, {
+        method: 'DELETE',
         headers: {
-          'Content-Type': 'application/json',
-          'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
         },
-        body: JSON.stringify({ user_id: uid }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        showToast(data.error || t('operation_failed'), 'error');
+
+      if (!deleteRes.ok) {
+        const data = await deleteRes.json();
+        showToast(data.msg || data.message || t('operation_failed'), 'error');
       } else {
         showToast(t('delete_user_success'));
         await fetchUsers();
@@ -152,24 +183,29 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
     if (!editUser) return;
     setUpdating(true);
     try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-user`;
-      const session = (await supabase.auth.getSession()).data.session;
-      const res = await fetch(url, {
-        method: 'POST',
+      const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+      if (!serviceRoleKey) {
+        showToast('系统配置错误', 'error');
+        setUpdating(false);
+        return;
+      }
+
+      const updateRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_profiles?id=eq.${editUser.id}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${session?.access_token}`,
+          'Apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
         },
         body: JSON.stringify({
-          user_id: editUser.id,
           display_name: editDisplayName.trim(),
           phone: editPhone.trim(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) {
-        showToast(data.error || t('operation_failed'), 'error');
+
+      if (!updateRes.ok) {
+        const data = await updateRes.json();
+        showToast(data.msg || data.message || t('operation_failed'), 'error');
       } else {
         showToast(t('update_user_success'));
         setEditUser(null);
