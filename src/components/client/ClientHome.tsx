@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, Announcement, Session, SeatMapRow, formatSeatName, TicketType } from '../../lib/supabase';
-import { validateRemark, getRemarkLimit } from '../../lib/remarkValidator';
+import { validateRemark, getRemarkLimit, getEnglishCharLimit, truncateRemark } from '../../lib/remarkValidator';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChevronRight, Calendar, Clock, Users, ArrowLeft, X, LayoutGrid, Plus, Minus, Ticket } from 'lucide-react';
 import Toast from '../Toast';
@@ -519,7 +519,8 @@ function BookingFormView({
   const [phone, setPhone] = useState(prefillPhone);
   const [noteContent, setNoteContent] = useState('');
   const [noteValidationError, setNoteValidationError] = useState('');
-  const [noteLimit, setNoteLimit] = useState({ chinese: 0, western: 0, maxChinese: 30, maxWestern: 20 });
+  const [noteLimit, setNoteLimit] = useState({ current: 0, max: 30, unit: '字' as const });
+  const [englishCharLimit, setEnglishCharLimit] = useState({ current: 0, max: 120 });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -539,7 +540,7 @@ function BookingFormView({
     if (!name.trim()) { setError(t('fill_name')); return; }
     if (!phone.trim()) { setError(t('fill_phone')); return; }
     
-    const noteValidation = validateRemark(noteContent);
+    const noteValidation = validateRemark(noteContent, isEn ? 'en' : 'zh');
     if (!noteValidation.valid) {
       setError(noteValidation.message);
       return;
@@ -626,6 +627,8 @@ function BookingFormView({
           return;
         } else if (rpcResult?.error === 'seat_taken' || rpcResult?.error === 'lock_expired') {
           errors.push(hasSeats ? (order as SeatWithTicket).seatName : `Order ${i + 1}`);
+        } else if (rpcResult?.error === 'invalid_remark') {
+          errors.push('remark');
         } else {
           errors.push(`Order ${i + 1}`);
         }
@@ -641,7 +644,11 @@ function BookingFormView({
     } else if (successCount > 0) {
       onSuccess();
     } else if (errors.length > 0) {
-      setError(isEn ? `Some bookings failed: ${errors.join(', ')}` : `部分预订失败: ${errors.join(', ')}`);
+      if (errors.includes('remark')) {
+        setError(isEn ? 'Remark is too long. Please limit to 20 words or 120 characters.' : '备注内容过长，请精简至30字以内。');
+      } else {
+        setError(isEn ? `Some bookings failed: ${errors.join(', ')}` : `部分预订失败: ${errors.join(', ')}`);
+      }
     } else {
       setError(t('booking_failed'));
     }
@@ -762,24 +769,49 @@ function BookingFormView({
               value={noteContent}
               onChange={e => {
                 const newValue = e.target.value;
-                setNoteContent(newValue);
-                const limit = getRemarkLimit(newValue);
+                const locale: 'zh' | 'en' = isEn ? 'en' : 'zh';
+                
+                let finalValue = newValue;
+                if (locale === 'zh') {
+                  const validation = validateRemark(newValue, 'zh');
+                  if (!validation.valid) {
+                    finalValue = truncateRemark(newValue, 'zh');
+                  }
+                } else {
+                  const words = newValue.split(/\s+/).filter(w => w.length > 0).length;
+                  if (words > 20 || newValue.length > 120) {
+                    finalValue = truncateRemark(newValue, 'en');
+                  }
+                }
+                
+                setNoteContent(finalValue);
+                
+                const limit = getRemarkLimit(finalValue, locale);
                 setNoteLimit(limit);
-                const validation = validateRemark(newValue);
+                
+                if (locale === 'en') {
+                  const charLimit = getEnglishCharLimit(finalValue);
+                  setEnglishCharLimit(charLimit);
+                }
+                
+                const validation = validateRemark(finalValue, locale);
                 setNoteValidationError(validation.valid ? '' : validation.message);
               }}
               placeholder={isEn ? 'Add any special requirements...' : '如有特殊需求请在此填写...'}
               rows={2}
-              maxLength={200}
+              maxLength={isEn ? 120 : 60}
               className={`w-full border rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 resize-none ${
                 isEn ? 'text-xs' : 'text-sm'
               } ${noteValidationError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-sky-400'}`}
             />
             <div className="flex items-center justify-between mt-1">
-              <p className="text-[10px] text-gray-400">{isEn ? 'Notes cannot be modified after submission' : '备注提交后不可修改'}</p>
+              <p className="text-[10px] text-gray-400">{isEn ? 'Max 20 words (120 chars)' : '最多可输入30字'}</p>
               {noteContent && (
                 <span className={`text-[10px] ${noteValidationError ? 'text-red-500' : 'text-gray-400'}`}>
-                  {noteLimit.chinese}/{noteLimit.maxChinese} 中 · {noteLimit.western}/{noteLimit.maxWestern} 西
+                  {isEn 
+                    ? `${noteLimit.current}/${noteLimit.max} words · ${englishCharLimit.current}/${englishCharLimit.max} chars`
+                    : `${noteLimit.current}/${noteLimit.max} ${noteLimit.unit}`
+                  }
                 </span>
               )}
             </div>

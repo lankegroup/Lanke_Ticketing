@@ -640,11 +640,14 @@ function RegistrationsList() {
             <div className="border-t border-gray-100 pt-3 space-y-2">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">订单备注</h4>
-                {detail.note_content && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${detail.note_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                    {detail.note_status === 'completed' ? '已完成' : '待处理'}
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {detail.note_content && (
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${detail.note_status === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                      {detail.note_status === 'completed' ? '已完成' : '待处理'}
+                    </span>
+                  )}
+                  <span className="text-[10px] text-gray-400">限制：中文30字 / 英文20词(120字符)</span>
+                </div>
               </div>
               {detail.note_content ? (
                 <div className="bg-gray-50 rounded-xl p-3">
@@ -680,20 +683,21 @@ function RegistrationsList() {
                         onChange={e => {
                           const newValue = e.target.value;
                           setAdminNoteContent(newValue);
-                          const validation = validateRemark(newValue);
+                          const validation = validateRemark(newValue, 'zh');
                           if (!validation.valid) {
                             showToast(validation.message, 'error');
                           }
                         }}
                         placeholder="补充管理员备注..."
                         rows={2}
-                        maxLength={200}
+                        maxLength={120}
                         className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-sky-400"
                       />
+                      <p className="text-[10px] text-gray-400 mt-1">限制：中文30字 / 英文20词(120字符)</p>
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
-                            const validation = validateRemark(adminNoteContent);
+                            const validation = validateRemark(adminNoteContent, 'zh');
                             if (!validation.valid) {
                               showToast(validation.message, 'error');
                               return;
@@ -733,20 +737,21 @@ function RegistrationsList() {
                         onChange={e => {
                           const newValue = e.target.value;
                           setAdminNoteContent(newValue);
-                          const validation = validateRemark(newValue);
+                          const validation = validateRemark(newValue, 'zh');
                           if (!validation.valid) {
                             showToast(validation.message, 'error');
                           }
                         }}
                         placeholder="输入管理员备注（代用户记录）..."
                         rows={2}
-                        maxLength={200}
+                        maxLength={120}
                         className="w-full border border-gray-200 rounded-xl px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-sky-400"
                       />
+                      <p className="text-[10px] text-gray-400">限制：中文30字 / 英文20词(120字符)</p>
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
-                            const validation = validateRemark(adminNoteContent);
+                            const validation = validateRemark(adminNoteContent, 'zh');
                             if (!validation.valid) {
                               showToast(validation.message, 'error');
                               return;
