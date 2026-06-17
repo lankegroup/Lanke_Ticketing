@@ -97,7 +97,14 @@ function NotesSummary() {
     created_at: string;
   }>>([]);
   const [loading, setLoading] = useState(true);
-  const [groupedBySession, setGroupedBySession] = useState<Record<string, typeof notes>>({});
+
+  interface UserNotesGroup {
+    name: string;
+    phone: string;
+    notes: typeof notes;
+  }
+
+  const [groupedByUser, setGroupedByUser] = useState<UserNotesGroup[]>([]);
 
   useEffect(() => {
     fetchNotes();
@@ -110,7 +117,6 @@ function NotesSummary() {
       .select('id, note_content, note_author, note_status, is_note_read, name, phone, ticket_code, created_at, sessions(name, session_date)')
       .not('note_content', null)
       .is('deleted_at', null)
-      .order('sessions.session_date')
       .order('created_at', { ascending: false });
     const list = (data as any[])?.map(n => ({
       id: n.id,
@@ -126,13 +132,16 @@ function NotesSummary() {
       created_at: n.created_at,
     })) ?? [];
     setNotes(list);
-    const grouped: Record<string, typeof notes> = {};
+
+    const userMap = new Map<string, UserNotesGroup>();
     list.forEach(n => {
-      const key = `${n.session_date} · ${n.session_name}`;
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(n);
+      const key = `${n.phone || 'unknown'}|${n.name || 'unknown'}`;
+      if (!userMap.has(key)) {
+        userMap.set(key, { name: n.name || '-', phone: n.phone || '-', notes: [] });
+      }
+      userMap.get(key)!.notes.push(n);
     });
-    setGroupedBySession(grouped);
+    setGroupedByUser(Array.from(userMap.values()));
     setLoading(false);
   }
 
@@ -153,23 +162,28 @@ function NotesSummary() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-gray-500">共 {notes.length} 条备注</p>
+        <p className="text-xs text-gray-500">共 {notes.length} 条备注，{groupedByUser.length} 位用户</p>
         <button onClick={fetchNotes} className="text-xs text-sky-600 hover:text-sky-500">刷新</button>
       </div>
-      {Object.entries(groupedBySession).map(([sessionKey, sessionNotes]) => (
-        <div key={sessionKey} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="bg-gray-50 px-4 py-2.5 border-b border-gray-100">
-            <p className="text-xs font-semibold text-gray-600">{sessionKey}</p>
+      {groupedByUser.map((userGroup, userIdx) => (
+        <div key={userIdx} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-gray-900">{userGroup.name}</span>
+                <span className="text-xs text-gray-400">{userGroup.phone}</span>
+              </div>
+              <span className="text-[10px] text-gray-400">{userGroup.notes.length} 条备注</span>
+            </div>
           </div>
           <div className="divide-y divide-gray-100">
-            {sessionNotes.map(note => (
+            {userGroup.notes.map(note => (
               <div key={note.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-medium text-gray-900">{note.name}</span>
-                      <span className="text-xs text-gray-400">{note.phone}</span>
                       <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{note.ticket_code}</span>
+                      <span className="text-[10px] text-gray-400">{note.session_name} · {note.session_date}</span>
                     </div>
                     <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{note.note_content}</p>
                     <div className="flex items-center gap-2 text-[10px] text-gray-400">

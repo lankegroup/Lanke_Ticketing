@@ -140,11 +140,9 @@ export function renderTicketToCanvas(p: TicketParams): void {
     { cnLabel: '操作员',   enLabel: 'Operator',    cnValue: operatorCn,     enValue: operatorEn },
     { cnLabel: '下单时间', enLabel: 'Order Time',  cnValue: p.orderTime,    enValue: p.orderTime },
     { cnLabel: '票  价', enLabel: 'Ticket Price', cnValue: `¥${(p.ticketPrice ?? 0).toFixed(2)}`, enValue: `¥${(p.ticketPrice ?? 0).toFixed(2)}` },
-    ...(p.serviceFee !== undefined && p.serviceFee > 0
-      ? [{ cnLabel: '手续费', enLabel: 'Service Fee', cnValue: `¥${p.serviceFee.toFixed(2)}`, enValue: `¥${p.serviceFee.toFixed(2)}` }]
-      : []),
-    ...(p.ticketPrice !== undefined && p.serviceFee !== undefined
-      ? [{ cnLabel: '合  计', enLabel: 'Total', cnValue: `¥${(p.ticketPrice + p.serviceFee).toFixed(2)}`, enValue: `¥${(p.ticketPrice + p.serviceFee).toFixed(2)}` }]
+    { cnLabel: '手续费', enLabel: 'Service Fee', cnValue: `¥${(p.serviceFee ?? 0).toFixed(2)}`, enValue: `¥${(p.serviceFee ?? 0).toFixed(2)}` },
+    ...(p.ticketPrice !== undefined || p.serviceFee !== undefined
+      ? [{ cnLabel: '合  计', enLabel: 'Total', cnValue: `¥${((p.ticketPrice ?? 0) + (p.serviceFee ?? 0)).toFixed(2)}`, enValue: `¥${((p.ticketPrice ?? 0) + (p.serviceFee ?? 0)).toFixed(2)}` }]
       : []),
     ...(p.paidAt
       ? [{ cnLabel: '付款时间', enLabel: 'Payment Time', cnValue: p.paidAt, enValue: p.paidAt }]
@@ -231,9 +229,9 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.font = `${20 * D}px sans-serif`;
   ctx.fillText(subLabelEn, PAD, SUBLABEL_EN_Y);
 
-  ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#6b7280';
-  ctx.lineWidth = D;
+  ctx.setLineDash([8 * D, 6 * D]);
+  ctx.strokeStyle = '#374151';
+  ctx.lineWidth = 2 * D;
   ctx.beginPath();
   ctx.moveTo(PAD, DIVIDER_Y);
   ctx.lineTo(W - PAD, DIVIDER_Y);
@@ -293,9 +291,9 @@ export function renderTicketToCanvas(p: TicketParams): void {
   iy += 12 * D;
 
   // Perforation divider
-  ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#6b7280';
-  ctx.lineWidth = D;
+  ctx.setLineDash([8 * D, 6 * D]);
+  ctx.strokeStyle = '#374151';
+  ctx.lineWidth = 2 * D;
   ctx.beginPath();
   ctx.moveTo(PAD, iy);
   ctx.lineTo(W - PAD, iy);
@@ -351,13 +349,13 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 190 * D);
 
   // Copyright line — Chinese
-  ctx.fillStyle = '#b0aaa4';
-  ctx.font = `${18 * D}px sans-serif`;
+  ctx.fillStyle = '#78716c';
+  ctx.font = `${24 * D}px sans-serif`;
   ctx.fillText('© 兰克集团数智一体化票务运营平台', W / 2, fBase + 218 * D);
   // Copyright line — English
-  ctx.fillStyle = '#c4bfba';
-  ctx.font = `${16 * D}px sans-serif`;
-  ctx.fillText('Lanke Group Digital Ticketing Platform', W / 2, fBase + 240 * D);
+  ctx.fillStyle = '#a8a29e';
+  ctx.font = `${22 * D}px sans-serif`;
+  ctx.fillText('Lanke Group Digital Ticketing Platform', W / 2, fBase + 244 * D);
 
   ctx.textAlign = 'left';
 }

@@ -128,22 +128,37 @@ export default function KioskMode({ exitPassword, onExit }: Props) {
       if (session?.verification_start && session?.verification_end) {
         const now = new Date();
         const today = now.toISOString().slice(0, 10);
-        const verifyDate = session.verify_date
-          ? (session.verify_date instanceof Date
-            ? session.verify_date.toISOString().slice(0, 10)
-            : String(session.verify_date).slice(0, 10))
-          : session.session_date
-            ? (session.session_date instanceof Date
-              ? session.session_date.toISOString().slice(0, 10)
-              : String(session.session_date).slice(0, 10))
-            : today;
-
-        if (today < verifyDate) {
-          setScanInfo({ message: `未到核销日期 (${verifyDate})`, failTone: 'amber' });
-          setStatus('failed'); scheduleReset(); return;
+        
+        let verifyDate = today;
+        if (session.verify_date) {
+          if (session.verify_date instanceof Date) {
+            verifyDate = session.verify_date.toISOString().slice(0, 10);
+          } else {
+            const strDate = String(session.verify_date);
+            const parsed = new Date(strDate);
+            if (!isNaN(parsed.getTime())) {
+              verifyDate = parsed.toISOString().slice(0, 10);
+            } else {
+              verifyDate = strDate.slice(0, 10);
+            }
+          }
+        } else if (session.session_date) {
+          if (session.session_date instanceof Date) {
+            verifyDate = session.session_date.toISOString().slice(0, 10);
+          } else {
+            const strDate = String(session.session_date);
+            const parsed = new Date(strDate);
+            if (!isNaN(parsed.getTime())) {
+              verifyDate = parsed.toISOString().slice(0, 10);
+            } else {
+              verifyDate = strDate.slice(0, 10);
+            }
+          }
         }
-        if (today > verifyDate) {
-          setScanInfo({ message: '该场次核销日期已过', failTone: 'red' });
+
+        if (today !== verifyDate) {
+          const dateMsg = today < verifyDate ? `未到核销日期 (${verifyDate})` : '该场次核销日期已过';
+          setScanInfo({ message: dateMsg, failTone: today < verifyDate ? 'amber' : 'red' });
           setStatus('failed'); scheduleReset(); return;
         }
 

@@ -2059,21 +2059,18 @@ function SessionEditor({
                 )}
                 <div className="border border-gray-100 rounded-xl p-4 bg-gray-50 overflow-auto" style={{ zoom: 1.4 }}>
                   {screenDirection === 'top' && (
-                    <div className="relative mb-3 h-8">
-                      {/* Preview layout: label (20px) + gap (2px) + seats, each seat 28px + 2px gap */}
-                      {/* Column N center: 22 + (N-1)*30 + 14 */}
+                    <div className="relative mb-3 h-8" style={{ width: `${20 + 4 + previewCols * (28 + 2) - 2}px` }}>
                       <svg
                         width="60"
                         height="24"
                         viewBox="0 0 60 24"
                         className="absolute"
                         style={{
-                          left: `calc(${22 + (stageCenterCol - 1) * 30 + 14 - 30}px)`,
+                          left: `${20 + 4 + (stageCenterCol - 1) * (28 + 2) + 28 / 2 - 60 / 2}px`,
                           bottom: 0
                         }}
                       >
                         <rect x="4" y="2" width="52" height="18" rx="4" ry="4" fill="rgb(243, 244, 246)" stroke="rgb(156, 163, 175)" strokeWidth="1" />
-                        {/* Monitor icon symmetric */}
                         <rect x="13" y="7" width="8" height="6" rx="0.8" fill="none" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
                         <line x1="17" y1="13" x2="17" y2="15" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
                         <line x1="14" y1="15" x2="20" y2="15" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
