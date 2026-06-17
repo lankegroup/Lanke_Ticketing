@@ -1902,7 +1902,7 @@ function SessionEditor({
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">基本信息</h3>
           <input
             value={name}
-            onChange={e => { setName(e.target.value); setFieldErrors(prev => { const { name: _, ...rest } = prev; return rest; }); }}
+            onChange={e => { setName(e.target.value); setFieldErrors(prev => ({ ...prev, name: undefined })); }}
             placeholder={t('session_name')}
             className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${
               fieldErrors.name ? 'border-red-400 bg-red-50 ring-2 ring-red-200' : 'border-gray-200 focus:ring-sky-400'
@@ -1912,7 +1912,7 @@ function SessionEditor({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-gray-500 mb-1 block">{t('session_date')}</label>
-              <input type="date" value={sessionDate} onChange={e => { setSessionDate(e.target.value); setFieldErrors(prev => { const { sessionDate: _, ...rest } = prev; return rest; }); }}
+              <input type="date" value={sessionDate} onChange={e => { setSessionDate(e.target.value); setFieldErrors(prev => ({ ...prev, sessionDate: undefined })); }}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
                   fieldErrors.sessionDate ? 'border-red-400 bg-red-50 ring-2 ring-red-200' : 'border-gray-200 focus:ring-sky-400'
                 }`} />
@@ -1933,7 +1933,7 @@ function SessionEditor({
                   );
                 })()}
               </label>
-              <input type="number" min={0} ref={availableStockRef} value={availableStock} onChange={e => { setAvailableStock(parseInt(e.target.value) || 0); setFieldErrors(prev => { const { availableStock: _, ...rest } = prev; return rest; }); }}
+              <input type="number" min={0} ref={availableStockRef} value={availableStock} onChange={e => { setAvailableStock(parseInt(e.target.value) || 0); setFieldErrors(prev => ({ ...prev, availableStock: undefined })); }}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
                   fieldErrors.availableStock ? 'border-red-400 bg-red-50 ring-2 ring-red-200' :
                   hasSeatingChart && availableStock > seatRows * seatsPerRow - (savedSessionId ? blockSeats.filter(s => s.is_blocked).length : previewBlocked.size)
@@ -1944,7 +1944,7 @@ function SessionEditor({
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">{t('start_time')}</label>
-              <input type="time" value={startTime} onChange={e => { setStartTime(e.target.value); setFieldErrors(prev => { const { startTime: _, endTime: _, ...rest } = prev; return rest; }); }}
+              <input type="time" value={startTime} onChange={e => { setStartTime(e.target.value); setFieldErrors(prev => ({ ...prev, startTime: undefined, endTime: undefined })); }}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
                   fieldErrors.startTime ? 'border-red-400 bg-red-50 ring-2 ring-red-200' :
                   fieldErrors.endTime ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' :
@@ -1954,7 +1954,7 @@ function SessionEditor({
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">{t('end_time')}</label>
-              <input type="time" ref={endTimeRef} value={endTime} onChange={e => { setEndTime(e.target.value); setFieldErrors(prev => { const { endTime: _, ...rest } = prev; return rest; }); }}
+              <input type="time" ref={endTimeRef} value={endTime} onChange={e => { setEndTime(e.target.value); setFieldErrors(prev => ({ ...prev, endTime: undefined })); }}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
                   fieldErrors.endTime ? 'border-red-400 bg-red-50 ring-2 ring-red-200' :
                   'border-gray-200 focus:ring-sky-400'
@@ -2200,14 +2200,14 @@ function SessionEditor({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-gray-400 mb-1 block">{t('verification_start')}</label>
-              <input type="time" value={verStart} onChange={e => { setVerStart(e.target.value); setFieldErrors(prev => { const { verStart: _, verEndTime: _, ...rest } = prev; return rest; }); }}
+              <input type="time" value={verStart} onChange={e => { setVerStart(e.target.value); setFieldErrors(prev => ({ ...prev, verStart: undefined, verEndTime: undefined })); }}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
                   fieldErrors.verEndTime ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-gray-200 focus:ring-sky-400'
                 }`} />
             </div>
             <div>
               <label className="text-[10px] text-gray-400 mb-1 block">{t('verification_end')}</label>
-              <input type="time" ref={verEndTimeRef} value={verEnd} onChange={e => { setVerEnd(e.target.value); setFieldErrors(prev => { const { verEndTime: _, ...rest } = prev; return rest; }); }}
+              <input type="time" ref={verEndTimeRef} value={verEnd} onChange={e => { setVerEnd(e.target.value); setFieldErrors(prev => ({ ...prev, verEndTime: undefined })); }}
                 className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
                   fieldErrors.verEndTime ? 'border-red-400 bg-red-50 ring-2 ring-red-200' : 'border-gray-200 focus:ring-sky-400'
                 }`} />
