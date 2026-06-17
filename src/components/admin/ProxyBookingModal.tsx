@@ -228,7 +228,7 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
     const selectedSeat = seats.find(s => s.id === selectedSeatId);
     const isForce = pendingForce || (selectedSeat?.is_blocked ?? false);
 
-    const { data, error: err } = await supabase.rpc('admin_book_ticket', {
+    const bookResult = await callEdgeFunction('proxy-book-ticket', {
       p_session_id: selectedSession.id,
       p_seat_id: selectedSeatId ?? null,
       p_name: user.display_name || user.id.slice(0, 8),
@@ -239,14 +239,14 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       p_ticket_type: ticketType,
     });
 
-    const rpcResult = data as any;
+    const rpcResult = bookResult.data as any;
 
-    if (err || !rpcResult?.success) {
+    if (bookResult.error || !rpcResult?.success) {
       const msg = rpcResult?.error;
       if (msg === 'sold_out') setError('该场次已售罄');
       else if (msg === 'seat_taken') setError('座位已被预订，请返回重新选择');
       else if (msg === 'missing_params') setError('该用户缺少手机号，请先完善用户信息');
-      else setError('预订失败：' + (msg || err || '未知错误'));
+      else setError('预订失败：' + (msg || bookResult.error || '未知错误'));
       setSubmitting(false);
       return;
     }

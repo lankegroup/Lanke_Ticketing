@@ -597,15 +597,19 @@ function BookingFormView({
       const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
       const ticketType = order.ticketType;
 
-      const rpcName = seatId ? 'book_ticket_with_seat' : 'book_ticket';
-      const rpcBody = seatId
-        ? { p_session_id: session.id, p_seat_id: seatId, p_name: name.trim(), p_phone: trimmedPhone, p_user_id: effectiveUserId ?? null, p_ticket_type: ticketType, p_buyer_user_id: buyerUserId ?? null, p_note_content: noteContent.trim() || null }
-        : { p_session_id: session.id, p_name: name.trim(), p_phone: trimmedPhone, p_user_id: effectiveUserId ?? null, p_ticket_type: ticketType, p_buyer_user_id: buyerUserId ?? null, p_note_content: noteContent.trim() || null };
+      const bookResult = await callEdgeFunction('book-ticket', {
+        p_session_id: session.id,
+        p_seat_id: seatId ?? null,
+        p_name: name.trim(),
+        p_phone: trimmedPhone,
+        p_user_id: effectiveUserId ?? null,
+        p_ticket_type: ticketType,
+        p_buyer_user_id: buyerUserId ?? null,
+        p_note_content: noteContent.trim() || null,
+      });
+      const rpcResult = bookResult.data as any;
 
-      const { data, error: err } = await supabase.rpc(rpcName, rpcBody);
-      const rpcResult = data as any;
-
-      if (err || !rpcResult?.success) {
+      if (bookResult.error || !rpcResult?.success) {
         if (rpcResult?.error === 'sold_out') {
           onSoldOut();
           setSubmitting(false);

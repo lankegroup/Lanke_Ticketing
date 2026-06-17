@@ -15,7 +15,6 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Verify caller is an authenticated admin
     const authHeader = req.headers.get("Authorization") ?? "";
     const token = authHeader.replace("Bearer ", "");
 
@@ -34,7 +33,6 @@ Deno.serve(async (req: Request) => {
     const userJson = await userRes.json();
     const callerId = userJson?.id;
 
-    // Confirm caller is in admin_profiles
     const adminCheck = await fetch(
       `${supabaseUrl}/rest/v1/admin_profiles?id=eq.${callerId}&select=id`,
       {
@@ -76,7 +74,7 @@ Deno.serve(async (req: Request) => {
         p_seat_id: p_seat_id ?? null,
         p_name,
         p_phone,
-        p_user_id,
+        p_user_id: p_user_id ?? null,
         p_force: p_force ?? false,
         p_order_source: p_order_source ?? "admin",
         p_is_supplementary: p_is_supplementary ?? false,
@@ -88,7 +86,7 @@ Deno.serve(async (req: Request) => {
 
     if (!res.ok) {
       console.error("admin_book_ticket rpc failed:", res.status, data);
-      return new Response(JSON.stringify({ error: data?.message || "rpc_failed" }), {
+      return new Response(JSON.stringify({ error: data?.message || data?.error || "rpc_failed" }), {
         status: res.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

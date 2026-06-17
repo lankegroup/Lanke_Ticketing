@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase, UserProfile, Registration, SeatMapRow, Session } from '../../lib/supabase';
+import { supabase, callEdgeFunction, UserProfile, Registration, SeatMapRow, Session } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Plus, Trash2, User, Users, Pencil, TicketCheck, PackageOpen, X, Ticket, RefreshCw, Printer, AlertTriangle } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -83,31 +83,15 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
     if (!formUsername.trim() || !formPassword.trim() || !formPhone.trim()) return;
     setCreating(true);
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      if (!session?.access_token) {
-        showToast('请重新登录', 'error');
-        setCreating(false);
-        return;
-      }
-
-      const createRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          username: formUsername.trim(),
-          password: formPassword,
-          phone: formPhone.trim(),
-          display_name: formUsername.trim(),
-        }),
+      const { data, error } = await callEdgeFunction('create-user', {
+        username: formUsername.trim(),
+        password: formPassword,
+        phone: formPhone.trim(),
+        display_name: formUsername.trim(),
       });
 
-      const createData = await createRes.json();
-      if (!createRes.ok || !createData.success) {
-        showToast(createData.error || t('create_user_failed'), 'error');
+      if (error || !data?.success) {
+        showToast((data as any)?.error || error || t('create_user_failed'), 'error');
         setCreating(false);
         return;
       }
@@ -126,26 +110,9 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
 
   async function handleDelete(uid: string) {
     try {
-      const session = (await supabase.auth.getSession()).data.session;
-      if (!session?.access_token) {
-        showToast('请重新登录', 'error');
-        setConfirm(null);
-        return;
-      }
-
-      const deleteRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ user_id: uid }),
-      });
-
-      const data = await deleteRes.json();
-      if (!deleteRes.ok || !data.success) {
-        showToast(data.error || t('operation_failed'), 'error');
+      const { data, error } = await callEdgeFunction('delete-user', { user_id: uid });
+      if (error || !data?.success) {
+        showToast((data as any)?.error || error || t('operation_failed'), 'error');
       } else {
         showToast(t('delete_user_success'));
         await fetchUsers();

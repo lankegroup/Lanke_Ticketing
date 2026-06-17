@@ -12,6 +12,25 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const token = authHeader.replace("Bearer ", "");
+
+    const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Apikey: serviceRoleKey,
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    if (!userRes.ok) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { user_id } = await req.json();
 
     if (!user_id) {
@@ -21,16 +40,12 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const restHeaders = {
       "Content-Type": "application/json",
       Apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`,
     };
 
-    // Clean up all FK references to auth.users before deleting,
-    // otherwise Supabase returns "Database error deleting user".
     await Promise.all([
       fetch(`${supabaseUrl}/rest/v1/registrations?validated_by=eq.${user_id}`, {
         method: "PATCH",
@@ -58,7 +73,6 @@ Deno.serve(async (req: Request) => {
       }),
     ]);
 
-    // user_profiles has ON DELETE CASCADE so it will be removed automatically.
     const res = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user_id}`, {
       method: "DELETE",
       headers: {

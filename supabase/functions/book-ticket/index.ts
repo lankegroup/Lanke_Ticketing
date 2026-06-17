@@ -12,7 +12,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { p_session_id, p_name, p_phone, p_user_id, p_buyer_user_id, p_seat_id, p_ticket_type, p_note_content } = await req.json();
+    const { p_session_id, p_seat_id, p_name, p_phone, p_user_id, p_ticket_type, p_buyer_user_id, p_note_content } = await req.json();
 
     if (!p_session_id || !p_name || !p_phone) {
       return new Response(JSON.stringify({ error: "missing_params" }), {
@@ -26,7 +26,6 @@ Deno.serve(async (req: Request) => {
 
     const ticketType = p_ticket_type ?? "adult";
 
-    // Use seat-aware RPC when seat_id is provided
     const rpcName = p_seat_id ? "book_ticket_with_seat" : "book_ticket";
     const rpcBody = p_seat_id
       ? { p_session_id, p_seat_id, p_name, p_phone, p_user_id: p_user_id ?? null, p_ticket_type: ticketType, p_buyer_user_id: p_buyer_user_id ?? null, p_note_content: p_note_content ?? null }
@@ -46,7 +45,7 @@ Deno.serve(async (req: Request) => {
 
     if (!res.ok) {
       console.error(`${rpcName} rpc failed:`, res.status, data);
-      return new Response(JSON.stringify({ error: data?.message || "rpc_failed" }), {
+      return new Response(JSON.stringify({ error: data?.message || data?.error || "rpc_failed" }), {
         status: res.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

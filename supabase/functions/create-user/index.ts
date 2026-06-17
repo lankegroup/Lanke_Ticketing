@@ -28,11 +28,9 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // Create auth user via admin API
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Use digits-only phone as email prefix so login can reconstruct the email
     const phoneDigits = phone.replace(/\D/g, '');
     const email = `${phoneDigits}@user.ticketing.local`;
 
@@ -54,14 +52,13 @@ Deno.serve(async (req: Request) => {
 
     if (!createRes.ok) {
       return new Response(JSON.stringify({ error: createData.msg || createData.message || "Failed to create user" }), {
-        status: 400,
+        status: createRes.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const userId = createData.id;
 
-    // Create user profile
     const profileRes = await fetch(`${supabaseUrl}/rest/v1/user_profiles`, {
       method: "POST",
       headers: {
