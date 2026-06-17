@@ -1299,7 +1299,41 @@ function SessionEditor({
   const [stageCenterCol, setStageCenterCol] = useState<number>(
     initial.stage_center_col ?? ((initial.seats_per_row || 10) + 1) / 2,
   );
-  const [seatSaveError, setSeatSaveError] = useState('');
+  // Field-level errors (shown next to the offending field)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [generalError, setGeneralError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
+  // Refs for auto-scroll on validation errors
+  const endTimeRef = useRef<HTMLInputElement>(null);
+  const verEndTimeRef = useRef<HTMLInputElement>(null);
+  const availableStockRef = useRef<HTMLInputElement>(null);
+  const formTopRef = useRef<HTMLDivElement>(null);
+
+  function scrollToError(field: string) {
+    setTimeout(() => {
+      const map: Record<string, React.RefObject<HTMLInputElement>> = {
+        endTime: endTimeRef,
+        verEndTime: verEndTimeRef,
+        availableStock: availableStockRef,
+      };
+      if (field === 'top') {
+        formTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        return;
+      }
+      map[field]?.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 50);
+  }
+
+  function setFieldError(field: string, msg: string) {
+    setFieldErrors(prev => ({ ...prev, [field]: msg }));
+    scrollToError(field);
+  }
+
+  function clearAllErrors() {
+    setFieldErrors({});
+    setGeneralError('');
+  }
 
   // Track last-saved seat dimensions to avoid unnecessary seat regeneration
   const savedRowsRef = useRef(initial.seat_rows || 0);
@@ -1486,17 +1520,36 @@ function SessionEditor({
   }
 
   async function handleSave() {
-    if (!name || !sessionDate || !startTime || !endTime) return;
+    clearAllErrors();
+    setSuccessMsg('');
+
+    // Validate required basic fields
+    if (!name) {
+      setFieldError('name', '请填写场次名称');
+      return;
+    }
+    if (!sessionDate) {
+      setFieldError('sessionDate', '请选择场次日期');
+      return;
+    }
+    if (!startTime) {
+      setFieldError('startTime', '请选择开始时间');
+      return;
+    }
+    if (!endTime) {
+      setFieldError('endTime', '请选择结束时间');
+      return;
+    }
 
     // Validate end time is after start time
     if (endTime <= startTime) {
-      setSeatSaveError('结束时间必须晚于开始时间');
+      setFieldError('endTime', '结束时间必须晚于开始时间');
       return;
     }
 
     // Validate verification times if set
     if (verStart && verEnd && verEnd <= verStart) {
-      setSeatSaveError('核销结束时间必须晚于核销开始时间');
+      setFieldError('verEndTime', '核销结束时间必须晚于核销开始时间');
       return;
     }
 
@@ -1510,13 +1563,12 @@ function SessionEditor({
         : previewBlocked.size;
       const availableSeats = seatRows * seatsPerRow - blockedCount;
       if (availableStock > availableSeats) {
-        setSeatSaveError(`票额上限（${availableStock}）不能超过可用座位数（${availableSeats} = ${seatRows}×${seatsPerRow} - ${blockedCount}个屏蔽座位），请调低票额或减少屏蔽座位。`);
+        setFieldError('availableStock', `票额上限（${availableStock}）不能超过可用座位数（${availableSeats} = ${seatRows}×${seatsPerRow} - ${blockedCount}个屏蔽座位），请调低票额或减少屏蔽座位。`);
         return;
       }
     }
 
     setSaving(true);
-    setSeatSaveError('');
 
     const payload: Record<string, unknown> = {
       name,
@@ -1547,7 +1599,8 @@ function SessionEditor({
       payload.capacity = availableStock;
       const { data, error } = await supabase.from('sessions').insert(payload).select('id').single();
       if (error || !data?.id) {
-        setSeatSaveError('保存场次失败：' + (error?.message ?? '未知错误'));
+        setGeneralError('保存场次失败：' + (error?.message ?? '未知错误'));
+        scrollToError('top');
         setSaving(false);
         return;
       }
@@ -1556,7 +1609,8 @@ function SessionEditor({
     } else {
       const { error } = await supabase.from('sessions').update(payload).eq('id', sessionId);
       if (error) {
-        setSeatSaveError('保存失败：' + error.message);
+        setGeneralError('保存失败：' + error.message);
+        scrollToError('top');
         setSaving(false);
         return;
       }
@@ -1573,7 +1627,8 @@ function SessionEditor({
         p_seats_per_row: seatsPerRow,
       });
       if (rpcErr) {
-        setSeatSaveError('座位图生成失败：' + rpcErr.message);
+        setGeneralError('座位图生成失败：' + rpcErr.message);
+        scrollToError('top');
         setSaving(false);
         return;
       }
@@ -1581,9 +1636,8 @@ function SessionEditor({
       savedColsRef.current = seatsPerRow;
       const cancelled = (rpcData as any)?.cancelled_bookings ?? 0;
       if (cancelled > 0) {
-        setSeatSaveError(`保存成功。注意：${cancelled} 个超出新座位范围的订单已自动取消并恢复名额。`);
+        setGeneralError(`保存成功。注意：${cancelled} 个超出新座位范围的订单已自动取消并恢复名额。`);
         setSaving(false);
-        // Refresh seat list so block section is usable
         if (hasSeatingChart) fetchBlockSeats(sessionId);
         return;
       }
@@ -1597,7 +1651,6 @@ function SessionEditor({
 
     // Apply any seats pre-selected in the preview as blocked (new session flow)
     if (hasSeatingChart && sessionId && previewBlocked.size > 0 && (isNew || !savedSessionId || needsGenerate)) {
-      // Fetch fresh seat map to get actual seat IDs
       const { data: freshSeats } = await supabase.rpc('get_seat_map', { p_session_id: sessionId });
       if (freshSeats && (freshSeats as SeatMapRow[]).length > 0) {
         const idsToBlock: string[] = [];
@@ -1616,11 +1669,10 @@ function SessionEditor({
     }
 
     setSaving(false);
-    // For new sessions: stay in editor so admin can block seats; don't auto-close
     if (!isNew || !hasSeatingChart) {
       onSave();
     } else {
-      setSeatSaveError('场次已保存！可直接点击预览格子屏蔽座位，或在下方"座位屏蔽管理"中批量操作，完成后点击"完成"。');
+      setSuccessMsg('场次已保存！可直接点击预览格子屏蔽座位，或在下方"座位屏蔽管理"中批量操作，完成后点击"完成"。');
     }
   }
 
@@ -1731,7 +1783,7 @@ function SessionEditor({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 -mx-4 -mt-4">
+    <div className="flex flex-col min-h-screen bg-gray-50 -mx-4 -mt-4" ref={formTopRef}>
 
       {/* Preview sold-seat action modal */}
       {previewSoldAction && (
@@ -1823,21 +1875,48 @@ function SessionEditor({
         </button>
       </div>
 
+      {(generalError || successMsg) && (
+        <div className="px-4 pt-3">
+          {generalError && (
+            <div className={`border rounded-xl px-3 py-2.5 flex items-start gap-2 ${
+              generalError.startsWith('保存成功') ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'
+            }`}>
+              <AlertCircle size={14} className={`flex-shrink-0 mt-0.5 ${generalError.startsWith('保存成功') ? 'text-amber-600' : 'text-red-500'}`} />
+              <p className={`text-xs leading-relaxed ${
+                generalError.startsWith('保存成功') ? 'text-amber-700' : 'text-red-600'
+              }`}>{generalError}</p>
+            </div>
+          )}
+          {successMsg && (
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2.5 flex items-start gap-2">
+              <CheckCircle size={14} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-emerald-700 leading-relaxed">{successMsg}</p>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="p-4 space-y-4">
         {/* Basic Info */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">基本信息</h3>
           <input
             value={name}
-            onChange={e => setName(e.target.value)}
+            onChange={e => { setName(e.target.value); setFieldErrors(prev => { const { name: _, ...rest } = prev; return rest; }); }}
             placeholder={t('session_name')}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+            className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+              fieldErrors.name ? 'border-red-400 bg-red-50 ring-2 ring-red-200' : 'border-gray-200 focus:ring-sky-400'
+            }`}
           />
+          {fieldErrors.name && <p className="text-[10px] text-red-600 -mt-1">{fieldErrors.name}</p>}
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs text-gray-500 mb-1 block">{t('session_date')}</label>
-              <input type="date" value={sessionDate} onChange={e => setSessionDate(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              <input type="date" value={sessionDate} onChange={e => { setSessionDate(e.target.value); setFieldErrors(prev => { const { sessionDate: _, ...rest } = prev; return rest; }); }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+                  fieldErrors.sessionDate ? 'border-red-400 bg-red-50 ring-2 ring-red-200' : 'border-gray-200 focus:ring-sky-400'
+                }`} />
+              {fieldErrors.sessionDate && <p className="text-[10px] text-red-600 mt-1">{fieldErrors.sessionDate}</p>}
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">
@@ -1854,22 +1933,33 @@ function SessionEditor({
                   );
                 })()}
               </label>
-              <input type="number" min={0} value={availableStock} onChange={e => setAvailableStock(parseInt(e.target.value) || 0)}
-                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 ${
+              <input type="number" min={0} ref={availableStockRef} value={availableStock} onChange={e => { setAvailableStock(parseInt(e.target.value) || 0); setFieldErrors(prev => { const { availableStock: _, ...rest } = prev; return rest; }); }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+                  fieldErrors.availableStock ? 'border-red-400 bg-red-50 ring-2 ring-red-200' :
                   hasSeatingChart && availableStock > seatRows * seatsPerRow - (savedSessionId ? blockSeats.filter(s => s.is_blocked).length : previewBlocked.size)
-                    ? 'border-red-300 bg-red-50'
-                    : 'border-gray-200'
+                    ? 'border-red-300 bg-red-50 focus:ring-red-400'
+                    : 'border-gray-200 focus:ring-sky-400'
                 }`} />
+              {fieldErrors.availableStock && <p className="text-[10px] text-red-600 mt-1">{fieldErrors.availableStock}</p>}
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">{t('start_time')}</label>
-              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              <input type="time" value={startTime} onChange={e => { setStartTime(e.target.value); setFieldErrors(prev => { const { startTime: _, endTime: _, ...rest } = prev; return rest; }); }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+                  fieldErrors.startTime ? 'border-red-400 bg-red-50 ring-2 ring-red-200' :
+                  fieldErrors.endTime ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' :
+                  'border-gray-200 focus:ring-sky-400'
+                }`} />
+              {fieldErrors.startTime && <p className="text-[10px] text-red-600 mt-1">{fieldErrors.startTime}</p>}
             </div>
             <div>
               <label className="text-xs text-gray-500 mb-1 block">{t('end_time')}</label>
-              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              <input type="time" ref={endTimeRef} value={endTime} onChange={e => { setEndTime(e.target.value); setFieldErrors(prev => { const { endTime: _, ...rest } = prev; return rest; }); }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+                  fieldErrors.endTime ? 'border-red-400 bg-red-50 ring-2 ring-red-200' :
+                  'border-gray-200 focus:ring-sky-400'
+                }`} />
+              {fieldErrors.endTime && <p className="text-[10px] text-red-600 mt-1">{fieldErrors.endTime}</p>}
             </div>
           </div>
         </div>
@@ -2063,17 +2153,19 @@ function SessionEditor({
                 )}
               </div>
 
-              {seatSaveError && (
+              {generalError && (
                 <div className={`border rounded-xl px-3 py-2 ${
-                  seatSaveError.startsWith('保存成功') ? 'bg-amber-50 border-amber-200' :
-                  seatSaveError.startsWith('场次已保存') ? 'bg-emerald-50 border-emerald-200' :
+                  generalError.startsWith('保存成功') ? 'bg-amber-50 border-amber-200' :
                   'bg-red-50 border-red-200'
                 }`}>
                   <p className={`text-xs ${
-                    seatSaveError.startsWith('保存成功') ? 'text-amber-700' :
-                    seatSaveError.startsWith('场次已保存') ? 'text-emerald-700' :
-                    'text-red-600'
-                  }`}>{seatSaveError}</p>
+                    generalError.startsWith('保存成功') ? 'text-amber-700' : 'text-red-600'
+                  }`}>{generalError}</p>
+                </div>
+              )}
+              {successMsg && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                  <p className="text-xs text-emerald-700">{successMsg}</p>
                 </div>
               )}
 
@@ -2108,13 +2200,18 @@ function SessionEditor({
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-gray-400 mb-1 block">{t('verification_start')}</label>
-              <input type="time" value={verStart} onChange={e => setVerStart(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              <input type="time" value={verStart} onChange={e => { setVerStart(e.target.value); setFieldErrors(prev => { const { verStart: _, verEndTime: _, ...rest } = prev; return rest; }); }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+                  fieldErrors.verEndTime ? 'border-amber-300 bg-amber-50 focus:ring-amber-400' : 'border-gray-200 focus:ring-sky-400'
+                }`} />
             </div>
             <div>
               <label className="text-[10px] text-gray-400 mb-1 block">{t('verification_end')}</label>
-              <input type="time" value={verEnd} onChange={e => setVerEnd(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400" />
+              <input type="time" ref={verEndTimeRef} value={verEnd} onChange={e => { setVerEnd(e.target.value); setFieldErrors(prev => { const { verEndTime: _, ...rest } = prev; return rest; }); }}
+                className={`w-full border rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+                  fieldErrors.verEndTime ? 'border-red-400 bg-red-50 ring-2 ring-red-200' : 'border-gray-200 focus:ring-sky-400'
+                }`} />
+              {fieldErrors.verEndTime && <p className="text-[10px] text-red-600 mt-1 col-span-2">{fieldErrors.verEndTime}</p>}
             </div>
           </div>
           <p className="text-[10px] text-amber-600">{isEn ? 'Booking stops at: verifyEndTime - stopSellingMinutes' : '停售时间点 = 核销结束时间 - 停售倒计时'}</p>
