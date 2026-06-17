@@ -171,6 +171,16 @@ export type Notification = {
   created_at: string;
 };
 
+export type UserNote = {
+  id: string;
+  user_id: string;
+  note_content: string;
+  note_author: 'user' | 'admin';
+  is_handled: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Announcement = {
   id: string;
   title: string;

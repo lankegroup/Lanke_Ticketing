@@ -87,18 +87,23 @@ function NotesSummary() {
     id: string;
     note_content: string;
     note_author: 'user' | 'admin';
-    note_status: 'pending' | 'completed';
-    is_note_read: boolean;
+    is_handled: boolean;
     name: string;
     phone: string;
     user_id: string | null;
-    ticket_code: string;
-    session_name: string;
-    session_date: string;
+    ticket_code: string | null;
+    session_name: string | null;
+    session_date: string | null;
     created_at: string;
+    source: 'user_notes' | 'registrations';
   }>>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedUserName, setSelectedUserName] = useState('');
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   interface UserNotesGroup {
     name: string;
@@ -117,68 +122,128 @@ function NotesSummary() {
 
   async function fetchNotes() {
     setLoading(true);
-    let query = supabase
-      .from('registrations')
-      .select('id, note_content, note_author, note_status, is_note_read, name, phone, user_id, ticket_code, created_at, sessions(name, session_date)')
-      .not('note_content', null)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+    
+    const [userNotesRes, regNotesRes] = await Promise.all([
+      supabase
+        .from('user_notes')
+        .select('id, note_content, note_author, is_handled, user_id, created_at')
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('registrations')
+        .select('id, note_content, note_author, note_status, is_note_read, name, phone, user_id, ticket_code, created_at, sessions(name, session_date)')
+        .not('note_content', null)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false }),
+    ]);
 
-    if (filterStatus !== 'all') {
-      query = query.eq('note_status', filterStatus);
-    }
-
-    const { data } = await query;
-    const list = (data as any[])?.map(n => ({
+    const userNotes = (userNotesRes.data as any[])?.map(n => ({
       id: n.id,
       note_content: n.note_content,
       note_author: n.note_author,
-      note_status: n.note_status || 'pending',
-      is_note_read: n.is_note_read,
+      is_handled: n.is_handled,
+      name: '-',
+      phone: '-',
+      user_id: n.user_id || null,
+      ticket_code: null,
+      session_name: null,
+      session_date: null,
+      created_at: n.created_at,
+      source: 'user_notes' as const,
+    })) ?? [];
+
+    const regNotes = (regNotesRes.data as any[])?.map(n => ({
+      id: n.id,
+      note_content: n.note_content,
+      note_author: n.note_author,
+      is_handled: (n.note_status || 'pending') === 'completed',
       name: n.name,
       phone: n.phone,
       user_id: n.user_id || null,
       ticket_code: n.ticket_code,
-      session_name: n.sessions?.name || '-',
-      session_date: n.sessions?.session_date || '-',
+      session_name: n.sessions?.name || null,
+      session_date: n.sessions?.session_date || null,
       created_at: n.created_at,
+      source: 'registrations' as const,
     })) ?? [];
-    setNotes(list);
+
+    const combinedNotes = [...userNotes, ...regNotes].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    const filteredNotes = filterStatus === 'all'
+      ? combinedNotes
+      : combinedNotes.filter(n => n.is_handled === (filterStatus === 'completed'));
+
+    setNotes(filteredNotes);
 
     const userMap = new Map<string, UserNotesGroup>();
-    list.forEach(n => {
+    filteredNotes.forEach(n => {
       const key = n.user_id || `${n.phone || 'unknown'}|${n.name || 'unknown'}`;
       if (!userMap.has(key)) {
         userMap.set(key, { name: n.name || '-', phone: n.phone || '-', user_id: n.user_id || null, notes: [], pendingCount: 0, completedCount: 0 });
       }
       const group = userMap.get(key)!;
       group.notes.push(n);
-      if (n.note_status === 'pending') group.pendingCount++;
+      if (!n.is_handled) group.pendingCount++;
       else group.completedCount++;
     });
     setGroupedByUser(Array.from(userMap.values()));
     setLoading(false);
   }
 
-  async function toggleNoteStatus(noteId: string, currentStatus: 'pending' | 'completed') {
-    const newStatus = currentStatus === 'pending' ? 'completed' : 'pending';
-    await supabase.from('registrations').update({ note_status: newStatus, is_note_read: true }).eq('id', noteId);
+  async function toggleNoteStatus(noteId: string, currentHandled: boolean, source: 'user_notes' | 'registrations') {
+    const newHandled = !currentHandled;
+    if (source === 'user_notes') {
+      await supabase.from('user_notes').update({ is_handled: newHandled }).eq('id', noteId);
+    } else {
+      await supabase.from('registrations').update({ note_status: newHandled ? 'completed' : 'pending', is_note_read: true }).eq('id', noteId);
+    }
     fetchNotes();
+  }
+
+  async function addUserNote() {
+    if (!selectedUserId || !newNoteContent.trim()) {
+      setToast({ msg: '请选择用户并填写备注内容', type: 'error' });
+      return;
+    }
+    await supabase.from('user_notes').insert({
+      user_id: selectedUserId,
+      note_content: newNoteContent.trim(),
+      note_author: 'admin',
+      is_handled: false,
+    });
+    setShowAddModal(false);
+    setNewNoteContent('');
+    setSelectedUserId(null);
+    setSelectedUserName('');
+    setToast({ msg: '备注添加成功', type: 'success' });
+    fetchNotes();
+    setTimeout(() => setToast(null), 3000);
+  }
+
+  function openAddModal(userGroup: UserNotesGroup) {
+    setSelectedUserId(userGroup.user_id);
+    setSelectedUserName(userGroup.name);
+    setShowAddModal(true);
   }
 
   if (loading) {
     return <div className="flex items-center justify-center py-10"><div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" /></div>;
   }
 
-  const pendingCount = notes.filter(n => n.note_status === 'pending').length;
-  const completedCount = notes.filter(n => n.note_status === 'completed').length;
-
-  if (notes.length === 0) {
-    return <div className="text-center py-10 text-gray-400"><FileText size={32} className="mx-auto mb-2 opacity-50" /><p className="text-sm">暂无用户备注</p></div>;
-  }
+  const pendingCount = notes.filter(n => !n.is_handled).length;
+  const completedCount = notes.filter(n => n.is_handled).length;
 
   return (
     <div className="space-y-4">
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg ${
+          toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-500">共 {notes.length} 条备注，{groupedByUser.length} 位用户</p>
         <button onClick={fetchNotes} className="text-xs text-sky-600 hover:text-sky-500">刷新</button>
@@ -199,66 +264,113 @@ function NotesSummary() {
         ))}
       </div>
 
-      {groupedByUser.map((userGroup, userIdx) => (
-        <div key={userIdx} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <User size={14} className="text-sky-500" />
-                <span className="text-sm font-semibold text-gray-900">{userGroup.name}</span>
-                {userGroup.phone && <span className="text-xs text-gray-400">{userGroup.phone}</span>}
-              </div>
-              <div className="flex items-center gap-2">
-                {userGroup.pendingCount > 0 && (
-                  <span className="text-[10px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                    {userGroup.pendingCount} 待处理
-                  </span>
-                )}
-                {userGroup.completedCount > 0 && (
-                  <span className="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
-                    {userGroup.completedCount} 已完成
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {userGroup.notes.map(note => (
-              <div key={note.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{note.ticket_code}</span>
-                      <span className="text-[10px] text-gray-400">{note.session_name} · {note.session_date}</span>
-                    </div>
-                    <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{note.note_content}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                      <span className={`px-1.5 py-0.5 rounded ${note.note_author === 'user' ? 'bg-sky-50 text-sky-600' : 'bg-purple-50 text-purple-600'}`}>
-                        {note.note_author === 'user' ? '用户' : '管理员'}
-                      </span>
-                      <span>{new Date(note.created_at).toLocaleString()}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => toggleNoteStatus(note.id, note.note_status)}
-                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
-                      note.note_status === 'completed'
-                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                    }`}
-                  >
-                    {note.note_status === 'completed' ? (
-                      <>已完成</>
-                    ) : (
-                      <>待处理</>
-                    )}
-                  </button>
+      {notes.length === 0 ? (
+        <div className="text-center py-10 text-gray-400">
+          <FileText size={32} className="mx-auto mb-2 opacity-50" />
+          <p className="text-sm">暂无用户备注</p>
+        </div>
+      ) : (
+        groupedByUser.map((userGroup, userIdx) => (
+          <div key={userIdx} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+            <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <User size={14} className="text-sky-500" />
+                  <span className="text-sm font-semibold text-gray-900">{userGroup.name}</span>
+                  {userGroup.phone && <span className="text-xs text-gray-400">{userGroup.phone}</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {userGroup.pendingCount > 0 && (
+                    <span className="text-[10px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                      {userGroup.pendingCount} 待处理
+                    </span>
+                  )}
+                  {userGroup.completedCount > 0 && (
+                    <span className="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                      {userGroup.completedCount} 已完成
+                    </span>
+                  )}
+                  {userGroup.user_id && (
+                    <button
+                      onClick={() => openAddModal(userGroup)}
+                      className="flex items-center gap-1 px-2 py-1 bg-sky-500 text-white text-[10px] font-medium rounded-lg hover:bg-sky-400 transition-colors"
+                    >
+                      <Plus size={10} /> 添加备注
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
+            </div>
+            <div className="divide-y divide-gray-100">
+              {userGroup.notes.map(note => (
+                <div key={note.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      {(note.ticket_code || note.session_name) && (
+                        <div className="flex items-center gap-2 mb-1">
+                          {note.ticket_code && (
+                            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{note.ticket_code}</span>
+                          )}
+                          {note.session_name && (
+                            <span className="text-[10px] text-gray-400">{note.session_name} · {note.session_date}</span>
+                          )}
+                        </div>
+                      )}
+                      <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{note.note_content}</p>
+                      <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                        <span className={`px-1.5 py-0.5 rounded ${note.note_author === 'user' ? 'bg-sky-50 text-sky-600' : 'bg-purple-50 text-purple-600'}`}>
+                          {note.note_author === 'user' ? '用户' : '管理员'}
+                        </span>
+                        <span>{new Date(note.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => toggleNoteStatus(note.id, note.is_handled, note.source)}
+                      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
+                        note.is_handled
+                          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                      }`}
+                    >
+                      {note.is_handled ? '已处理' : '待处理'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+
+      {/* Add note modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm">
+            <h3 className="font-bold text-gray-900 text-base mb-3">为 {selectedUserName} 添加备注</h3>
+            <textarea
+              value={newNoteContent}
+              onChange={e => setNewNoteContent(e.target.value)}
+              placeholder="请输入备注内容（如：需轮椅服务、VIP接待等）"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
+              rows={4}
+            />
+            <div className="flex gap-2 mt-4">
+              <button
+                onClick={() => { setShowAddModal(false); setNewNoteContent(''); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={addUserNote}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-sky-500 text-white hover:bg-sky-400 transition-colors"
+              >
+                添加
+              </button>
+            </div>
           </div>
         </div>
-      ))}
+      )}
     </div>
   );
 }

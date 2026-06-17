@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase, Registration, formatSeatName, TicketType, TICKET_TYPE_LABELS } from '../../lib/supabase';
+import { supabase, Registration, formatSeatName, TicketType, TICKET_TYPE_LABELS, UserNote } from '../../lib/supabase';
 import { ArrowLeft, ShieldCheck } from 'lucide-react';
 
 type Props = {
@@ -12,6 +12,7 @@ export default function QRCodeView({ ticket, onBack }: Props) {
   const { t, i18n } = useTranslation();
   const [QRCode, setQRCode] = useState<any>(null);
   const [liveStatus, setLiveStatus] = useState(ticket.status);
+  const [userNotes, setUserNotes] = useState<UserNote[]>([]);
   const isEn = i18n.language === 'en';
   const s = ticket.sessions as any;
   const seat = (ticket as any).seats;
@@ -37,6 +38,21 @@ export default function QRCodeView({ ticket, onBack }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [ticket.id, ticket.status]);
 
+  useEffect(() => {
+    if (ticket.user_id) {
+      fetchUserNotes();
+    }
+  }, [ticket.user_id]);
+
+  async function fetchUserNotes() {
+    const { data } = await supabase
+      .from('user_notes')
+      .select('note_content, note_author, created_at')
+      .eq('user_id', ticket.user_id!)
+      .order('created_at', { ascending: false });
+    setUserNotes((data as UserNote[]) ?? []);
+  }
+
   const isActive = liveStatus === 'active';
   const justVerified = ticket.status === 'active' && liveStatus === 'used';
 
@@ -57,6 +73,9 @@ export default function QRCodeView({ ticket, onBack }: Props) {
     cancelled: 'text-red-400',
     expired: 'text-amber-400',
   };
+
+  const orderNote = ticket.note_content;
+  const hasNotes = orderNote || userNotes.length > 0;
 
   return (
     <div className="min-h-screen bg-slate-900">
@@ -148,6 +167,27 @@ export default function QRCodeView({ ticket, onBack }: Props) {
                 {ticket.phone && <p className="text-slate-400 text-xs mt-0.5">{ticket.phone}</p>}
               </div>
             </div>
+
+            {/* Notes section */}
+            {hasNotes && (
+              <div className="relative z-10 mx-6 mb-4 bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{isEn ? 'Notes' : '备注信息'}</p>
+                <div className="space-y-2">
+                  {orderNote && (
+                    <div className="bg-sky-500/10 rounded-lg px-3 py-2">
+                      <p className="text-slate-400 text-[9px] mb-1">{isEn ? 'Order Note' : '订单备注'}</p>
+                      <p className="text-slate-200 text-xs whitespace-pre-wrap">{orderNote}</p>
+                    </div>
+                  )}
+                  {userNotes.map((note, idx) => (
+                    <div key={idx} className="bg-purple-500/10 rounded-lg px-3 py-2">
+                      <p className="text-slate-400 text-[9px] mb-1">{isEn ? 'Admin Note' : '补充备注'}</p>
+                      <p className="text-slate-200 text-xs whitespace-pre-wrap">{note.note_content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Dashed perforation line */}
             <div className="relative z-10 flex items-center mx-0 my-0">
