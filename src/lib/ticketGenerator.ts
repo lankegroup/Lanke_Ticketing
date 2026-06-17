@@ -139,9 +139,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
       : []),
     { cnLabel: '操作员',   enLabel: 'Operator',    cnValue: operatorCn,     enValue: operatorEn },
     { cnLabel: '下单时间', enLabel: 'Order Time',  cnValue: p.orderTime,    enValue: p.orderTime },
-    ...(p.ticketPrice !== undefined && p.ticketPrice > 0
-      ? [{ cnLabel: '票  价', enLabel: 'Ticket Price', cnValue: `¥${p.ticketPrice.toFixed(2)}`, enValue: `¥${p.ticketPrice.toFixed(2)}` }]
-      : []),
+    { cnLabel: '票  价', enLabel: 'Ticket Price', cnValue: `¥${(p.ticketPrice ?? 0).toFixed(2)}`, enValue: `¥${(p.ticketPrice ?? 0).toFixed(2)}` },
     ...(p.serviceFee !== undefined && p.serviceFee > 0
       ? [{ cnLabel: '手续费', enLabel: 'Service Fee', cnValue: `¥${p.serviceFee.toFixed(2)}`, enValue: `¥${p.serviceFee.toFixed(2)}` }]
       : []),
@@ -234,7 +232,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillText(subLabelEn, PAD, SUBLABEL_EN_Y);
 
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#d1d5db';
+  ctx.strokeStyle = '#9ca3af';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, DIVIDER_Y);
@@ -296,7 +294,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // Perforation divider
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#d1d5db';
+  ctx.strokeStyle = '#9ca3af';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, iy);
@@ -350,7 +348,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
   // URL — larger with more top margin
   ctx.fillStyle = '#0ea5e9';
   ctx.font = `${24 * D}px sans-serif`;
-  ctx.fillText('https://lankegroup-booking.bolt.host/', W / 2, fBase + 190 * D);
+  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 190 * D);
 
   // Copyright line — Chinese
   ctx.fillStyle = '#b0aaa4';

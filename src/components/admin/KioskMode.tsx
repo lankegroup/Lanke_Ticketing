@@ -127,13 +127,35 @@ export default function KioskMode({ exitPassword, onExit }: Props) {
       const session = reg.sessions as any;
       if (session?.verification_start && session?.verification_end) {
         const now = new Date();
-        const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        if (hhmm < session.verification_start.slice(0, 5)) {
-          setScanInfo({ message: `未到核销时间 (${session.verification_start.slice(0, 5)})`, failTone: 'amber' });
+        const today = now.toISOString().slice(0, 10);
+        const verifyDate = session.verify_date
+          ? (session.verify_date instanceof Date
+            ? session.verify_date.toISOString().slice(0, 10)
+            : String(session.verify_date).slice(0, 10))
+          : session.session_date
+            ? (session.session_date instanceof Date
+              ? session.session_date.toISOString().slice(0, 10)
+              : String(session.session_date).slice(0, 10))
+            : today;
+
+        if (today < verifyDate) {
+          setScanInfo({ message: `未到核销日期 (${verifyDate})`, failTone: 'amber' });
           setStatus('failed'); scheduleReset(); return;
         }
-        if (hhmm > session.verification_end.slice(0, 5)) {
-          setScanInfo({ message: '核销时间已过', failTone: 'red' });
+        if (today > verifyDate) {
+          setScanInfo({ message: '该场次核销日期已过', failTone: 'red' });
+          setStatus('failed'); scheduleReset(); return;
+        }
+
+        const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        const verStart = session.verification_start.slice(0, 5);
+        const verEnd = session.verification_end.slice(0, 5);
+        if (hhmm < verStart) {
+          setScanInfo({ message: `未到核销时间 (${verStart})`, failTone: 'amber' });
+          setStatus('failed'); scheduleReset(); return;
+        }
+        if (hhmm > verEnd) {
+          setScanInfo({ message: `核销时间已过 (${verEnd})`, failTone: 'red' });
           setStatus('failed'); scheduleReset(); return;
         }
       }
@@ -382,7 +404,7 @@ export default function KioskMode({ exitPassword, onExit }: Props) {
           style={{ height: '100%', aspectRatio: '1 / 1', maxWidth: '100%' }}
         >
           {/* html5-qrcode renders here */}
-          <div id="kiosk-qr-reader" className="absolute inset-0" />
+          <div id="kiosk-qr-reader" className="absolute inset-0 kiosk-video" />
 
           {/* Corner brackets (idle) */}
           {status === 'idle' && (
