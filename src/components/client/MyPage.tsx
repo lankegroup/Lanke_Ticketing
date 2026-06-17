@@ -102,8 +102,8 @@ export default function MyPage() {
 
   if (subView === 'chat') {
     return (
-      <div className="fixed inset-0 z-50 bg-gray-50">
-        <div className="min-h-screen flex flex-col max-w-md mx-auto bg-white relative">
+      <div className="fixed inset-0 z-50 bg-gray-50 overflow-hidden">
+        <div className="h-full flex flex-col max-w-md mx-auto bg-white relative">
           <ChatView isEn={isEn} onBack={() => setSubView('main')} />
         </div>
       </div>

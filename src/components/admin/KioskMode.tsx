@@ -101,7 +101,7 @@ export default function KioskMode({ exitPassword, onExit }: Props) {
     try {
       const { data: reg, error } = await supabase
         .from('registrations')
-        .select('*, sessions(name, session_date, start_time, end_time, verification_start, verification_end), seats(seat_name)')
+        .select('*, sessions(name, session_date, verify_date, start_time, end_time, verification_start, verification_end), seats(seat_name)')
         .eq('ticket_code', trimmed)
         .maybeSingle();
 
@@ -205,7 +205,7 @@ export default function KioskMode({ exitPassword, onExit }: Props) {
         html5QrCode = new Html5Qrcode('kiosk-qr-reader');
         scannerRef.current = html5QrCode;
 
-        const config = { fps: 15, qrbox: { width: 220, height: 220 } };
+        const config = { fps: 15, qrbox: { width: 220, height: 220 }, experimentalFeatures: { useBarCodeDetectorIfSupported: false } };
         try {
           await html5QrCode.start({ facingMode: 'user' }, config,
             (text: string) => { if (!disposed) validateTicket(text); }, undefined);

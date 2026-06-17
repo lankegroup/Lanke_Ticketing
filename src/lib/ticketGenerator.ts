@@ -232,7 +232,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillText(subLabelEn, PAD, SUBLABEL_EN_Y);
 
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#9ca3af';
+  ctx.strokeStyle = '#6b7280';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, DIVIDER_Y);
@@ -294,7 +294,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // Perforation divider
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#9ca3af';
+  ctx.strokeStyle = '#6b7280';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, iy);

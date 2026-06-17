@@ -608,7 +608,6 @@ function BookingFormView({
         p_note_content: noteContent.trim() || null,
       });
       const rpcResult = bookResult.data as any;
-      console.log('[book-ticket] result:', bookResult, 'rpcResult:', rpcResult);
 
       if (bookResult.error || !rpcResult?.success) {
         if (rpcResult?.error === 'sold_out') {

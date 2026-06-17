@@ -130,7 +130,7 @@ body {
   width: 100% !important;
   height: 100% !important;
   object-fit: cover !important;
-  transform: scaleX(1);
+  transform: none !important;
 }
 /* Hide html5-qrcode's built-in shading / SVG overlay */
 #kiosk-qr-reader img,
