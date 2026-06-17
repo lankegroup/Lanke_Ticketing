@@ -1,8 +1,9 @@
 -- ============================================================
 -- PATCH: Fix permission issues for admin functions
+-- Run this in Supabase SQL Editor
 -- ============================================================
 
--- 0. Add admin policies for user_profiles (update/delete)
+-- 1. Add admin policies for user_profiles (update/delete)
 CREATE POLICY "user_profiles_update_admin" ON user_profiles FOR UPDATE
   TO authenticated
   USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()))
@@ -12,32 +13,10 @@ CREATE POLICY "user_profiles_delete_admin" ON user_profiles FOR DELETE
   TO authenticated
   USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
 
--- 0.5. Create storage bucket for announcements (if not exists)
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM storage.buckets WHERE name = 'announcements') THEN
-    PERFORM storage.create_bucket('announcements');
-    PERFORM storage.set_bucket_public('announcements');
-  END IF;
-END $$;
+-- 2. Fix generate_session_seats - switch back to SECURITY DEFINER
+DROP FUNCTION IF EXISTS public.generate_session_seats(UUID, INT, INT);
+DROP FUNCTION IF EXISTS public.generate_session_seats(UUID, INTEGER, INTEGER);
 
--- Grant storage permissions
-GRANT USAGE ON SCHEMA storage TO anon, authenticated;
-GRANT SELECT ON storage.buckets TO anon, authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
-
--- Create storage policy for announcements
-CREATE POLICY "announcements_insert_admin" ON storage.objects
-  FOR INSERT TO authenticated
-  WITH CHECK (bucket_id = 'announcements' AND EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
-
-CREATE POLICY "announcements_select_public" ON storage.objects
-  FOR SELECT TO anon, authenticated
-  USING (bucket_id = 'announcements');
-
--- 1. Fix generate_session_seats - switch back to SECURITY DEFINER
--- SECURITY INVOKER requires the caller to have all RLS permissions,
--- which doesn't work well with the supabase client in browser
 CREATE OR REPLACE FUNCTION public.generate_session_seats(
   p_session_id    UUID,
   p_rows          INT,
@@ -88,16 +67,19 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.generate_session_seats(UUID, INT, INT) TO anon, authenticated;
 
--- 2. Fix admin_book_ticket - SECURITY DEFINER for admin operations
+-- 3. Fix admin_book_ticket - SECURITY DEFINER
+-- Parameters with defaults must come last
+DROP FUNCTION IF EXISTS public.admin_book_ticket(UUID, UUID, TEXT, TEXT, UUID, BOOLEAN, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.admin_book_ticket(
   p_session_id    UUID,
   p_seat_id       UUID,
   p_name          TEXT,
   p_phone         TEXT,
   p_user_id       UUID,
-  p_force         BOOLEAN DEFAULT FALSE,
   p_order_source  TEXT DEFAULT 'admin',
-  p_ticket_type   TEXT DEFAULT 'normal'
+  p_ticket_type   TEXT DEFAULT 'normal',
+  p_force         BOOLEAN DEFAULT FALSE
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -148,9 +130,11 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.admin_book_ticket(UUID, UUID, TEXT, TEXT, UUID, BOOLEAN, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_book_ticket(UUID, UUID, TEXT, TEXT, UUID, TEXT, TEXT, BOOLEAN) TO anon, authenticated;
 
--- 3. Fix cancel_ticket - SECURITY DEFINER
+-- 4. Fix cancel_ticket - SECURITY DEFINER
+DROP FUNCTION IF EXISTS public.cancel_ticket(UUID, UUID);
+
 CREATE OR REPLACE FUNCTION public.cancel_ticket(
   p_registration_id UUID,
   p_user_id         UUID
@@ -190,15 +174,18 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.cancel_ticket(UUID, UUID) TO anon, authenticated;
 
--- 4. Fix book_ticket - SECURITY DEFINER
+-- 5. Fix book_ticket - SECURITY DEFINER
+-- Parameters with defaults must come last
+DROP FUNCTION IF EXISTS public.book_ticket(UUID, TEXT, TEXT, UUID, TEXT, UUID, TEXT);
+
 CREATE OR REPLACE FUNCTION public.book_ticket(
-  p_session_id     UUID,
-  p_name           TEXT,
-  p_phone          TEXT,
-  p_user_id        UUID,
-  p_ticket_type    TEXT DEFAULT 'normal',
-  p_buyer_user_id  UUID,
-  p_note_content   TEXT
+  p_session_id    UUID,
+  p_name          TEXT,
+  p_phone         TEXT,
+  p_user_id       UUID,
+  p_buyer_user_id UUID,
+  p_ticket_type   TEXT DEFAULT 'normal',
+  p_note_content  TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -234,18 +221,21 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.book_ticket(UUID, TEXT, TEXT, UUID, TEXT, UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.book_ticket(UUID, TEXT, TEXT, UUID, UUID, TEXT, TEXT) TO anon, authenticated;
 
--- 5. Fix book_ticket_with_seat - SECURITY DEFINER
+-- 6. Fix book_ticket_with_seat - SECURITY DEFINER
+-- Parameters with defaults must come last
+DROP FUNCTION IF EXISTS public.book_ticket_with_seat(UUID, UUID, TEXT, TEXT, UUID, TEXT, UUID, TEXT);
+
 CREATE OR REPLACE FUNCTION public.book_ticket_with_seat(
-  p_session_id     UUID,
-  p_seat_id        UUID,
-  p_name           TEXT,
-  p_phone          TEXT,
-  p_user_id        UUID,
-  p_ticket_type    TEXT DEFAULT 'normal',
-  p_buyer_user_id  UUID,
-  p_note_content   TEXT
+  p_session_id    UUID,
+  p_seat_id       UUID,
+  p_name          TEXT,
+  p_phone         TEXT,
+  p_user_id       UUID,
+  p_buyer_user_id UUID,
+  p_ticket_type   TEXT DEFAULT 'normal',
+  p_note_content  TEXT DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -285,7 +275,14 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.book_ticket_with_seat(UUID, UUID, TEXT, TEXT, UUID, TEXT, UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.book_ticket_with_seat(UUID, UUID, TEXT, TEXT, UUID, UUID, TEXT, TEXT) TO anon, authenticated;
 
--- 6. Force schema cache reload
+-- 7. Force schema cache reload
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================
+-- IMPORTANT: After running this script, you also need to:
+-- 1. Go to Supabase Dashboard -> Storage -> Create bucket
+-- 2. Name the bucket: "announcements"
+-- 3. Set it as PUBLIC (or add appropriate policies)
+-- ============================================================

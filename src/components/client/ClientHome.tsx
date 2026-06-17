@@ -872,8 +872,8 @@ function SeatSelectionView({
   }
 
   // Derive actual dimensions from loaded seats
-  const actualRows = seats.length > 0 ? Math.max(...seats.map(s => s.row_index)) + 1 : session.seat_rows;
-  const actualCols = seats.length > 0 ? Math.max(...seats.map(s => s.col_index)) + 1 : session.seats_per_row;
+  const actualRows = seats.length > 0 ? Math.max(...seats.map(s => s.row_index)) : session.seat_rows;
+  const actualCols = seats.length > 0 ? Math.max(...seats.map(s => s.col_index)) : session.seats_per_row;
 
   // Get selected seat IDs for SeatMap
   const selectedSeatIds = selectedSeats.map(s => s.seatId);
