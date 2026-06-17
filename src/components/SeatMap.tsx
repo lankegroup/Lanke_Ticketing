@@ -156,12 +156,17 @@ export default function SeatMap({
     </div>
   ) : null;
 
-  const stageLabelWidth = 20;
-  const stageGap = 4;
-  const seatWidth = 32;
-  const seatGapWidth = 4;
-  const stagePosX = stageLabelWidth + stageGap + (effectiveStageCenterCol - 1) * (seatWidth + seatGapWidth) + seatWidth / 2;
-  const gridWidth = stageLabelWidth + stageGap + seatsPerRow * (seatWidth + seatGapWidth) - seatGapWidth;
+  // Fixed layout constants for consistent alignment
+  const rowLabelWidth = 20; // w-5 = 20px for row letter
+  const seatWidth = 32; // w-8 = 32px for each seat button
+  const seatGap = 4; // gap-1 = 4px between seats
+  const stageGap = 4; // gap between row labels and stage bar
+  
+  // Calculate grid width: row label + gap + all seats
+  const gridWidth = rowLabelWidth + stageGap + seatsPerRow * (seatWidth + seatGap) - seatGap;
+  
+  // Calculate stage position: center of the effective stage column
+  const stagePosX = rowLabelWidth + stageGap + (effectiveStageCenterCol - 0.5) * (seatWidth + seatGap) - seatGap / 2;
 
   const screenBar = (
     <div className="relative h-8 mb-2" style={{ width: `${gridWidth}px` }}>

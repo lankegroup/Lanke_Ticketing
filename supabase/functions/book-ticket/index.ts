@@ -45,8 +45,14 @@ Deno.serve(async (req: Request) => {
 
     if (!res.ok) {
       console.error(`${rpcName} rpc failed:`, res.status, data);
-      return new Response(JSON.stringify({ error: data?.message || data?.error || "rpc_failed" }), {
+      return new Response(JSON.stringify({ 
+        success: false,
+        error: data?.message || data?.error || "rpc_failed",
+        details: data,
         status: res.status,
+        rpcName: rpcName,
+      }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

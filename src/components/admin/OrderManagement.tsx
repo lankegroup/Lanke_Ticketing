@@ -100,7 +100,7 @@ function RegistrationsList() {
     const [regsRes, sessRes] = await Promise.all([
       supabase
         .from('registrations')
-        .select('*, sessions(name, session_date, start_time, end_time, verification_start, verification_end), seats(seat_name)')
+        .select('*, sessions(name, session_date, start_time, end_time, verification_start, verification_end, ticket_price, default_service_fee), seats(seat_name)')
         .is('deleted_at', null)
         .order('created_at', { ascending: false }),
       supabase.from('sessions').select('*').order('session_date'),
@@ -1735,7 +1735,7 @@ function SessionEditor({
     if (previewBooked.has(key) && savedSessionId) {
       const { data } = await supabase
         .from('registrations')
-        .select('*, sessions(name, session_date, start_time, end_time), seats(seat_name)')
+        .select('*, sessions(name, session_date, start_time, end_time, ticket_price, default_service_fee), seats(seat_name)')
         .eq('seat_id', blockSeats.find(s => s.seat_name === seatName)?.id ?? '')
         .not('status', 'in', '("cancelled","expired")')
         .is('deleted_at', null)

@@ -92,7 +92,7 @@ export default function AdminWorkbench({ isMobile = false, onFrontDeskMode }: { 
 
       const { data: reg, error } = await supabase
         .from('registrations')
-        .select('*, sessions(name, session_date, start_time, end_time, verification_start, verification_end), seats(seat_name)')
+        .select('*, sessions(name, session_date, start_time, end_time, verification_start, verification_end, verify_date), seats(seat_name)')
         .eq('ticket_code', trimmed)
         .maybeSingle();
 
