@@ -125,16 +125,19 @@ export default function AdminWorkbench({ isMobile = false, onFrontDeskMode }: { 
       }
 
       const session = reg.sessions as any;
-      // Verification logic: only allow verification when CurrentDate == verifyDate
-      // AND verifyStartTime <= CurrentTime <= verifyEndTime
-      if (session?.verify_date && session?.verification_start && session?.verification_end) {
-        const now = new Date();
-        const today = now.toISOString().slice(0, 10);
+      // Verification logic: only allow verification when:
+      // 1. CurrentDate == verifyDate (if verifyDate is set)
+      // 2. verifyStartTime <= CurrentTime <= verifyEndTime (if times are set)
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      // Check verify_date if it's set
+      if (session?.verify_date) {
         const verifyDate = session.verify_date instanceof Date
           ? session.verify_date.toISOString().slice(0, 10)
           : String(session.verify_date).slice(0, 10);
 
-        // First check if today is the verification date
         if (today !== verifyDate) {
           setResult({
             status: 'verification_not_open',
@@ -145,18 +148,25 @@ export default function AdminWorkbench({ isMobile = false, onFrontDeskMode }: { 
           });
           return;
         }
+      }
 
-        // Then check time window
-        const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-        if (currentTime < session.verification_start.slice(0, 5)) {
+      // Check verification_start time if it's set
+      if (session?.verification_start) {
+        const verStart = session.verification_start.slice(0, 5);
+        if (currentTime < verStart) {
           setResult({
             status: 'verification_not_open',
-            message: t('verification_not_open', { start: session.verification_start.slice(0, 5) }),
+            message: t('verification_not_open', { start: verStart }),
             name: reg.name,
           });
           return;
         }
-        if (currentTime > session.verification_end.slice(0, 5)) {
+      }
+
+      // Check verification_end time if it's set
+      if (session?.verification_end) {
+        const verEnd = session.verification_end.slice(0, 5);
+        if (currentTime > verEnd) {
           setResult({ status: 'verification_expired', message: t('verification_expired'), name: reg.name });
           return;
         }

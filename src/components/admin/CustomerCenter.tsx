@@ -91,33 +91,44 @@ function NotesSummary() {
     is_note_read: boolean;
     name: string;
     phone: string;
+    user_id: string | null;
     ticket_code: string;
     session_name: string;
     session_date: string;
     created_at: string;
   }>>([]);
   const [loading, setLoading] = useState(true);
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
 
   interface UserNotesGroup {
     name: string;
     phone: string;
+    user_id: string | null;
     notes: typeof notes;
+    pendingCount: number;
+    completedCount: number;
   }
 
   const [groupedByUser, setGroupedByUser] = useState<UserNotesGroup[]>([]);
 
   useEffect(() => {
     fetchNotes();
-  }, []);
+  }, [filterStatus]);
 
   async function fetchNotes() {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from('registrations')
-      .select('id, note_content, note_author, note_status, is_note_read, name, phone, ticket_code, created_at, sessions(name, session_date)')
+      .select('id, note_content, note_author, note_status, is_note_read, name, phone, user_id, ticket_code, created_at, sessions(name, session_date)')
       .not('note_content', null)
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
+
+    if (filterStatus !== 'all') {
+      query = query.eq('note_status', filterStatus);
+    }
+
+    const { data } = await query;
     const list = (data as any[])?.map(n => ({
       id: n.id,
       note_content: n.note_content,
@@ -126,6 +137,7 @@ function NotesSummary() {
       is_note_read: n.is_note_read,
       name: n.name,
       phone: n.phone,
+      user_id: n.user_id || null,
       ticket_code: n.ticket_code,
       session_name: n.sessions?.name || '-',
       session_date: n.sessions?.session_date || '-',
@@ -135,11 +147,14 @@ function NotesSummary() {
 
     const userMap = new Map<string, UserNotesGroup>();
     list.forEach(n => {
-      const key = `${n.phone || 'unknown'}|${n.name || 'unknown'}`;
+      const key = n.user_id || `${n.phone || 'unknown'}|${n.name || 'unknown'}`;
       if (!userMap.has(key)) {
-        userMap.set(key, { name: n.name || '-', phone: n.phone || '-', notes: [] });
+        userMap.set(key, { name: n.name || '-', phone: n.phone || '-', user_id: n.user_id || null, notes: [], pendingCount: 0, completedCount: 0 });
       }
-      userMap.get(key)!.notes.push(n);
+      const group = userMap.get(key)!;
+      group.notes.push(n);
+      if (n.note_status === 'pending') group.pendingCount++;
+      else group.completedCount++;
     });
     setGroupedByUser(Array.from(userMap.values()));
     setLoading(false);
@@ -147,13 +162,16 @@ function NotesSummary() {
 
   async function toggleNoteStatus(noteId: string, currentStatus: 'pending' | 'completed') {
     const newStatus = currentStatus === 'pending' ? 'completed' : 'pending';
-    await supabase.from('registrations').update({ note_status: newStatus }).eq('id', noteId);
+    await supabase.from('registrations').update({ note_status: newStatus, is_note_read: true }).eq('id', noteId);
     fetchNotes();
   }
 
   if (loading) {
     return <div className="flex items-center justify-center py-10"><div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" /></div>;
   }
+
+  const pendingCount = notes.filter(n => n.note_status === 'pending').length;
+  const completedCount = notes.filter(n => n.note_status === 'completed').length;
 
   if (notes.length === 0) {
     return <div className="text-center py-10 text-gray-400"><FileText size={32} className="mx-auto mb-2 opacity-50" /><p className="text-sm">暂无用户备注</p></div>;
@@ -165,15 +183,43 @@ function NotesSummary() {
         <p className="text-xs text-gray-500">共 {notes.length} 条备注，{groupedByUser.length} 位用户</p>
         <button onClick={fetchNotes} className="text-xs text-sky-600 hover:text-sky-500">刷新</button>
       </div>
+
+      {/* Status filter */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {(['all', 'pending', 'completed'] as const).map(t => (
+          <button
+            key={t}
+            onClick={() => setFilterStatus(t)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              filterStatus === t ? 'bg-white text-sky-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t === 'all' ? '全部' : t === 'pending' ? `待处理 (${pendingCount})` : `已完成 (${completedCount})`}
+          </button>
+        ))}
+      </div>
+
       {groupedByUser.map((userGroup, userIdx) => (
         <div key={userIdx} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
+                <User size={14} className="text-sky-500" />
                 <span className="text-sm font-semibold text-gray-900">{userGroup.name}</span>
-                <span className="text-xs text-gray-400">{userGroup.phone}</span>
+                {userGroup.phone && <span className="text-xs text-gray-400">{userGroup.phone}</span>}
               </div>
-              <span className="text-[10px] text-gray-400">{userGroup.notes.length} 条备注</span>
+              <div className="flex items-center gap-2">
+                {userGroup.pendingCount > 0 && (
+                  <span className="text-[10px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    {userGroup.pendingCount} 待处理
+                  </span>
+                )}
+                {userGroup.completedCount > 0 && (
+                  <span className="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                    {userGroup.completedCount} 已完成
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <div className="divide-y divide-gray-100">
@@ -187,19 +233,25 @@ function NotesSummary() {
                     </div>
                     <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{note.note_content}</p>
                     <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                      <span>来自：{note.note_author === 'user' ? '用户' : '管理员'}</span>
+                      <span className={`px-1.5 py-0.5 rounded ${note.note_author === 'user' ? 'bg-sky-50 text-sky-600' : 'bg-purple-50 text-purple-600'}`}>
+                        {note.note_author === 'user' ? '用户' : '管理员'}
+                      </span>
                       <span>{new Date(note.created_at).toLocaleString()}</span>
                     </div>
                   </div>
                   <button
                     onClick={() => toggleNoteStatus(note.id, note.note_status)}
-                    className={`flex-shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors ${
+                    className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
                       note.note_status === 'completed'
-                        ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-50'
-                        : 'bg-amber-100 text-amber-700 hover:bg-amber-50'
+                        ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
                     }`}
                   >
-                    {note.note_status === 'completed' ? '已完成' : '待处理'}
+                    {note.note_status === 'completed' ? (
+                      <>已完成</>
+                    ) : (
+                      <>待处理</>
+                    )}
                   </button>
                 </div>
               </div>

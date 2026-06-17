@@ -52,6 +52,8 @@
   "scan_again": "继续扫码",
   "camera_error": "相机启动失败，请检查是否有其他应用占用摄像头",
   "verification_not_open": "未到核销时间，请在 {start} 后再试",
+  "verification_not_open_date_future": "未到核销日期，请在 {date} 之后再试",
+  "verification_not_open_date_past": "该场次核销日期已过",
   "verification_expired": "已过核销时间，无法核销",
   "session_management": "场次管理",
   "add_session": "添加场次",

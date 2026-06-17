@@ -125,34 +125,22 @@ export default function KioskMode({ exitPassword, onExit }: Props) {
       }
 
       const session = reg.sessions as any;
-      if (session?.verification_start && session?.verification_end) {
-        const now = new Date();
-        const today = now.toISOString().slice(0, 10);
-        
+      const now = new Date();
+      const today = now.toISOString().slice(0, 10);
+      const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+      // Check verify_date if it's set
+      if (session?.verify_date) {
         let verifyDate = today;
-        if (session.verify_date) {
-          if (session.verify_date instanceof Date) {
-            verifyDate = session.verify_date.toISOString().slice(0, 10);
+        if (session.verify_date instanceof Date) {
+          verifyDate = session.verify_date.toISOString().slice(0, 10);
+        } else {
+          const strDate = String(session.verify_date);
+          const parsed = new Date(strDate);
+          if (!isNaN(parsed.getTime())) {
+            verifyDate = parsed.toISOString().slice(0, 10);
           } else {
-            const strDate = String(session.verify_date);
-            const parsed = new Date(strDate);
-            if (!isNaN(parsed.getTime())) {
-              verifyDate = parsed.toISOString().slice(0, 10);
-            } else {
-              verifyDate = strDate.slice(0, 10);
-            }
-          }
-        } else if (session.session_date) {
-          if (session.session_date instanceof Date) {
-            verifyDate = session.session_date.toISOString().slice(0, 10);
-          } else {
-            const strDate = String(session.session_date);
-            const parsed = new Date(strDate);
-            if (!isNaN(parsed.getTime())) {
-              verifyDate = parsed.toISOString().slice(0, 10);
-            } else {
-              verifyDate = strDate.slice(0, 10);
-            }
+            verifyDate = strDate.slice(0, 10);
           }
         }
 
@@ -161,14 +149,20 @@ export default function KioskMode({ exitPassword, onExit }: Props) {
           setScanInfo({ message: dateMsg, failTone: today < verifyDate ? 'amber' : 'red' });
           setStatus('failed'); scheduleReset(); return;
         }
+      }
 
-        const hhmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+      // Check verification_start time if it's set
+      if (session?.verification_start) {
         const verStart = session.verification_start.slice(0, 5);
-        const verEnd = session.verification_end.slice(0, 5);
         if (hhmm < verStart) {
           setScanInfo({ message: `未到核销时间 (${verStart})`, failTone: 'amber' });
           setStatus('failed'); scheduleReset(); return;
         }
+      }
+
+      // Check verification_end time if it's set
+      if (session?.verification_end) {
+        const verEnd = session.verification_end.slice(0, 5);
         if (hhmm > verEnd) {
           setScanInfo({ message: `核销时间已过 (${verEnd})`, failTone: 'red' });
           setStatus('failed'); scheduleReset(); return;
@@ -419,7 +413,7 @@ export default function KioskMode({ exitPassword, onExit }: Props) {
           style={{ height: '100%', aspectRatio: '1 / 1', maxWidth: '100%' }}
         >
           {/* html5-qrcode renders here */}
-          <div id="kiosk-qr-reader" className="absolute inset-0 kiosk-video" />
+          <div id="kiosk-qr-reader" className="absolute inset-0 kiosk-video" style={{ transform: 'scaleX(-1)' }} />
 
           {/* Corner brackets (idle) */}
           {status === 'idle' && (

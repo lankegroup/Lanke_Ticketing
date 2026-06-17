@@ -61,7 +61,6 @@ function RegistrationsList() {
   const [confirm, setConfirm] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [verifyConfirm, setVerifyConfirm] = useState<Registration | null>(null);
-  const [expiredVerify, setExpiredVerify] = useState<Registration | null>(null);
   const [detail, setDetail] = useState<Registration | null>(null);
   const [detailProfile, setDetailProfile] = useState<{ display_name: string | null; phone: string | null } | null>(null);
   const [noteEditing, setNoteEditing] = useState(false);
@@ -204,8 +203,10 @@ function RegistrationsList() {
 
   function handleVerifyClick(reg: Registration) {
     const window = checkVerifyTimeWindow(reg);
-    if (window === 'past') {
-      setExpiredVerify(reg);
+    if (window === 'before') {
+      showToast(t('verification_not_open', { start: (reg.sessions as any)?.verification_start?.slice(0, 5) }), 'error');
+    } else if (window === 'past') {
+      showToast(t('verification_expired'), 'error');
     } else {
       setVerifyConfirm(reg);
     }
@@ -427,33 +428,6 @@ function RegistrationsList() {
           onConfirm={() => { doVerify(verifyConfirm, 'used'); setVerifyConfirm(null); }}
           onCancel={() => setVerifyConfirm(null)}
         />
-      )}
-
-      {expiredVerify && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm">
-            <div className="flex items-center gap-2 mb-3">
-              <AlertCircle size={20} className="text-amber-500 flex-shrink-0" />
-              <h3 className="font-bold text-gray-900 text-base">{t('verification_time_passed')}</h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-5">{t('verification_time_passed_msg')}</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => { doVerify(expiredVerify, 'used'); setExpiredVerify(null); }}
-                className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors"
-              >
-                {t('force_verify')}
-              </button>
-              <button
-                onClick={() => { doVerify(expiredVerify, 'expired'); setExpiredVerify(null); }}
-                className="flex-1 bg-amber-500 hover:bg-amber-400 text-white py-2.5 rounded-xl text-sm font-semibold transition-colors"
-              >
-                {t('mark_expired')}
-              </button>
-            </div>
-            <button onClick={() => setExpiredVerify(null)} className="w-full mt-2 text-xs text-gray-400 py-1.5">{t('cancel')}</button>
-          </div>
-        </div>
       )}
 
       <div className="relative">
