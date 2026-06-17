@@ -271,6 +271,7 @@ export default function ClientHome() {
             fetchSessions();
             setStep('detail');
           }}
+          showToast={showToast}
         />
       )}
     </div>
@@ -496,24 +497,25 @@ function BookingFormView({
   session, isEn, prefillName, prefillPhone, userId,
   selectedSeats, nonSeatEntries, onUpdateSeatTicketType, onUpdateNonSeatEntryTicketType,
   onAddNonSeatEntry, onRemoveNonSeatEntry,
-  onBack, onSuccess, onSoldOut, onSessionExpired,
-}: {
-  session: Session;
-  isEn: boolean;
-  prefillName: string;
-  prefillPhone: string;
-  userId: string | null;
-  selectedSeats: SeatWithTicket[];
-  nonSeatEntries: NonSeatEntry[];
-  onUpdateSeatTicketType: (seatId: string, ticketType: TicketType) => void;
-  onUpdateNonSeatEntryTicketType: (id: string, ticketType: TicketType) => void;
-  onAddNonSeatEntry: () => void;
-  onRemoveNonSeatEntry: (id: string) => void;
-  onBack: () => void;
-  onSuccess: () => void;
-  onSoldOut: () => void;
-  onSessionExpired: () => void;
-}) {
+  onBack, onSuccess, onSoldOut, onSessionExpired, showToast,
+        }: {
+          session: Session;
+          isEn: boolean;
+          prefillName: string;
+          prefillPhone: string;
+          userId: string | null;
+          selectedSeats: SeatWithTicket[];
+          nonSeatEntries: NonSeatEntry[];
+          onUpdateSeatTicketType: (seatId: string, ticketType: TicketType) => void;
+          onUpdateNonSeatEntryTicketType: (id: string, ticketType: TicketType) => void;
+          onAddNonSeatEntry: () => void;
+          onRemoveNonSeatEntry: (id: string) => void;
+          onBack: () => void;
+          onSuccess: () => void;
+          onSoldOut: () => void;
+          onSessionExpired: () => void;
+          showToast: (msg: string, type: 'success' | 'error' | 'warning') => void;
+        }) {
   const { t } = useTranslation();
   const [name, setName] = useState(prefillName);
   const [phone, setPhone] = useState(prefillPhone);
@@ -542,7 +544,7 @@ function BookingFormView({
     
     const noteValidation = validateRemark(noteContent, isEn ? 'en' : 'zh');
     if (!noteValidation.valid) {
-      setError(noteValidation.message);
+      showToast(noteValidation.message, 'error');
       return;
     }
     
@@ -645,7 +647,9 @@ function BookingFormView({
       onSuccess();
     } else if (errors.length > 0) {
       if (errors.includes('remark')) {
-        setError(isEn ? 'Remark is too long. Please limit to 20 words or 120 characters.' : '备注内容过长，请精简至30字以内。');
+        showToast(isEn ? 'Remark is too long. Please limit to 20 words or 120 characters.' : '备注内容过长，请精简至30字以内。', 'error');
+      } else if (errors.some(e => e.includes('Order'))) {
+        showToast(isEn ? 'System busy or remark format error. Please check remark length.' : '系统繁忙或备注格式错误，请检查备注长度', 'error');
       } else {
         setError(isEn ? `Some bookings failed: ${errors.join(', ')}` : `部分预订失败: ${errors.join(', ')}`);
       }
@@ -799,7 +803,7 @@ function BookingFormView({
               }}
               placeholder={isEn ? 'Add any special requirements...' : '如有特殊需求请在此填写...'}
               rows={2}
-              maxLength={isEn ? 120 : 60}
+              maxLength={isEn ? 120 : 30}
               className={`w-full border rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 resize-none ${
                 isEn ? 'text-xs' : 'text-sm'
               } ${noteValidationError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-sky-400'}`}

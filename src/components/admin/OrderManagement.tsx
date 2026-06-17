@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, uploadImageViaFunction, Registration, Session, SeatMapRow, TicketType, TICKET_TYPE_LABELS, getDisplayStatus } from '../../lib/supabase';
-import { validateRemark } from '../../lib/remarkValidator';
+import { validateRemark, truncateRemark } from '../../lib/remarkValidator';
 import { useAuth } from '../../contexts/AuthContext';
-import { Plus, Trash2, Calendar, Users, Clock, Filter, Search, X, CheckCircle, AlertCircle, Edit3, ArrowLeft, Image, LayoutGrid, Ban, RefreshCw, Printer, Ticket } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, Clock, Filter, Search, X, CheckCircle, AlertCircle, Edit3, ArrowLeft, Image, LayoutGrid, Ban, RefreshCw, Printer, Ticket, AlertTriangle } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { renderTicketToCanvas, downloadTicket, formatOrderTime } from '../../lib/ticketGenerator';
 import ConfirmDialog from '../ConfirmDialog';
@@ -654,6 +654,18 @@ function RegistrationsList() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1">
                       <p className="text-xs text-gray-700 whitespace-pre-wrap">{detail.note_content}</p>
+                      {(() => {
+                        const validation = validateRemark(detail.note_content, 'zh');
+                        if (!validation.valid) {
+                          return (
+                            <div className="flex items-center gap-1 mt-1 text-[10px] text-amber-600">
+                              <AlertTriangle size={10} />
+                              <span>该备注超出常规长度（限制：中文30字/英文20词）</span>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                       <p className="text-[10px] text-gray-400 mt-1">
                         来自：{detail.note_author === 'user' ? '用户' : '管理员'}
                       </p>
