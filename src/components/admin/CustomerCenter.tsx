@@ -99,11 +99,7 @@ function NotesSummary() {
   }>>([]);
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'completed'>('all');
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedUserName, setSelectedUserName] = useState('');
-  const [newNoteContent, setNewNoteContent] = useState('');
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
 
   interface UserNotesGroup {
     name: string;
@@ -112,6 +108,7 @@ function NotesSummary() {
     notes: typeof notes;
     pendingCount: number;
     completedCount: number;
+    key: string;
   }
 
   const [groupedByUser, setGroupedByUser] = useState<UserNotesGroup[]>([]);
@@ -123,42 +120,18 @@ function NotesSummary() {
   async function fetchNotes() {
     setLoading(true);
     
-    // Fetch user_notes (global notes for users)
-    const { data: userNotesData } = await supabase
-      .from('user_notes')
-      .select('id, note_content, note_author, is_handled, user_id, created_at')
-      .order('created_at', { ascending: false });
-
-    // Fetch registrations with notes (order-level notes)
-    // Query all registrations and filter in code (handle both null and empty string)
     const { data: regData } = await supabase
       .from('registrations')
       .select('id, note_content, note_author, note_status, is_note_read, name, phone, user_id, ticket_code, created_at, sessions(name, session_date)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
-    const userNotes = (userNotesData as any[])?.map(n => ({
-      id: n.id,
-      note_content: n.note_content,
-      note_author: n.note_author,
-      is_handled: n.is_handled,
-      name: '-',
-      phone: '-',
-      user_id: n.user_id || null,
-      ticket_code: null,
-      session_name: null,
-      session_date: null,
-      created_at: n.created_at,
-      source: 'user_notes' as const,
-    })) ?? [];
-
-    // Filter registrations that have note_content (not null and not empty string)
     const regNotes = ((regData as any[]) ?? [])
       .filter(n => n.note_content && n.note_content.trim().length > 0)
       .map(n => ({
         id: n.id,
         note_content: n.note_content,
-        note_author: n.note_author,
+        note_author: (n.note_author || 'user') as 'user' | 'admin',
         is_handled: (n.note_status || 'pending') === 'completed',
         name: n.name,
         phone: n.phone,
@@ -170,13 +143,9 @@ function NotesSummary() {
         source: 'registrations' as const,
       }));
 
-    const combinedNotes = [...userNotes, ...regNotes].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-
     const filteredNotes = filterStatus === 'all'
-      ? combinedNotes
-      : combinedNotes.filter(n => n.is_handled === (filterStatus === 'completed'));
+      ? regNotes
+      : regNotes.filter(n => n.is_handled === (filterStatus === 'completed'));
 
     setNotes(filteredNotes);
 
@@ -184,7 +153,7 @@ function NotesSummary() {
     filteredNotes.forEach(n => {
       const key = n.user_id || `${n.phone || 'unknown'}|${n.name || 'unknown'}`;
       if (!userMap.has(key)) {
-        userMap.set(key, { name: n.name || '-', phone: n.phone || '-', user_id: n.user_id || null, notes: [], pendingCount: 0, completedCount: 0 });
+        userMap.set(key, { key, name: n.name || '-', phone: n.phone || '-', user_id: n.user_id || null, notes: [], pendingCount: 0, completedCount: 0 });
       }
       const group = userMap.get(key)!;
       group.notes.push(n);
@@ -195,40 +164,10 @@ function NotesSummary() {
     setLoading(false);
   }
 
-  async function toggleNoteStatus(noteId: string, currentHandled: boolean, source: 'user_notes' | 'registrations') {
+  async function toggleNoteStatus(noteId: string, currentHandled: boolean) {
     const newHandled = !currentHandled;
-    if (source === 'user_notes') {
-      await supabase.from('user_notes').update({ is_handled: newHandled }).eq('id', noteId);
-    } else {
-      await supabase.from('registrations').update({ note_status: newHandled ? 'completed' : 'pending', is_note_read: true }).eq('id', noteId);
-    }
+    await supabase.from('registrations').update({ note_status: newHandled ? 'completed' : 'pending', is_note_read: true }).eq('id', noteId);
     fetchNotes();
-  }
-
-  async function addUserNote() {
-    if (!selectedUserId || !newNoteContent.trim()) {
-      setToast({ msg: '请选择用户并填写备注内容', type: 'error' });
-      return;
-    }
-    await supabase.from('user_notes').insert({
-      user_id: selectedUserId,
-      note_content: newNoteContent.trim(),
-      note_author: 'admin',
-      is_handled: false,
-    });
-    setShowAddModal(false);
-    setNewNoteContent('');
-    setSelectedUserId(null);
-    setSelectedUserName('');
-    setToast({ msg: '备注添加成功', type: 'success' });
-    fetchNotes();
-    setTimeout(() => setToast(null), 3000);
-  }
-
-  function openAddModal(userGroup: UserNotesGroup) {
-    setSelectedUserId(userGroup.user_id);
-    setSelectedUserName(userGroup.name);
-    setShowAddModal(true);
   }
 
   if (loading) {
@@ -238,22 +177,23 @@ function NotesSummary() {
   const pendingCount = notes.filter(n => !n.is_handled).length;
   const completedCount = notes.filter(n => n.is_handled).length;
 
+  const formatPhone = (phone: string) => {
+    if (!phone || phone.length < 4) return phone;
+    return phone.slice(-4);
+  };
+
+  const truncateName = (name: string, maxLen: number = 4) => {
+    if (!name) return '-';
+    return name.length > maxLen ? name.slice(0, maxLen) + '...' : name;
+  };
+
   return (
     <div className="space-y-4">
-      {toast && (
-        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-sm font-medium shadow-lg ${
-          toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'
-        }`}>
-          {toast.msg}
-        </div>
-      )}
-
       <div className="flex items-center justify-between">
         <p className="text-xs text-gray-500">共 {notes.length} 条备注，{groupedByUser.length} 位用户</p>
         <button onClick={fetchNotes} className="text-xs text-sky-600 hover:text-sky-500">刷新</button>
       </div>
 
-      {/* Status filter */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
         {(['all', 'pending', 'completed'] as const).map(t => (
           <button
@@ -274,105 +214,87 @@ function NotesSummary() {
           <p className="text-sm">暂无用户备注</p>
         </div>
       ) : (
-        groupedByUser.map((userGroup, userIdx) => (
-          <div key={userIdx} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-            <div className="bg-gray-50 px-4 py-3 border-b border-gray-100">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <User size={14} className="text-sky-500" />
-                  <span className="text-sm font-semibold text-gray-900">{userGroup.name}</span>
-                  {userGroup.phone && <span className="text-xs text-gray-400">{userGroup.phone}</span>}
+        <div className="space-y-2">
+          {groupedByUser.map((userGroup) => (
+            <div key={userGroup.key} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div
+                onClick={() => setExpandedUser(expandedUser === userGroup.key ? null : userGroup.key)}
+                className="bg-gray-50 px-4 py-3 border-b border-gray-100 cursor-pointer flex items-center justify-between"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <User size={14} className="text-sky-500 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <span className="text-sm font-semibold text-gray-900 truncate block max-w-[100px]">
+                      {truncateName(userGroup.name)}
+                    </span>
+                    {userGroup.phone && (
+                      <span className="text-xs text-gray-400 block">****{formatPhone(userGroup.phone)}</span>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {userGroup.pendingCount > 0 && (
-                    <span className="text-[10px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-medium bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex-shrink-0">
                       {userGroup.pendingCount} 待处理
                     </span>
                   )}
                   {userGroup.completedCount > 0 && (
-                    <span className="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">
+                    <span className="text-[10px] font-medium bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full flex-shrink-0">
                       {userGroup.completedCount} 已完成
                     </span>
                   )}
-                  {userGroup.user_id && (
-                    <button
-                      onClick={() => openAddModal(userGroup)}
-                      className="flex items-center gap-1 px-2 py-1 bg-sky-500 text-white text-[10px] font-medium rounded-lg hover:bg-sky-400 transition-colors"
-                    >
-                      <Plus size={10} /> 添加备注
-                    </button>
-                  )}
+                  <ChevronRight
+                    size={14}
+                    className={`text-gray-400 transition-transform flex-shrink-0 ${expandedUser === userGroup.key ? 'rotate-90' : ''}`}
+                  />
+                </div>
+              </div>
+
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  expandedUser === userGroup.key ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                }`}
+              >
+                <div className="divide-y divide-gray-100">
+                  {userGroup.notes.map(note => (
+                    <div key={note.id} className="px-4 py-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          {(note.ticket_code || note.session_name) && (
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              {note.ticket_code && (
+                                <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{note.ticket_code}</span>
+                              )}
+                              {note.session_name && (
+                                <span className="text-[10px] text-gray-400">{note.session_name} · {note.session_date}</span>
+                              )}
+                            </div>
+                          )}
+                          <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{note.note_content}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                            <span className={`px-1.5 py-0.5 rounded ${note.note_author === 'user' ? 'bg-sky-50 text-sky-600' : 'bg-purple-50 text-purple-600'}`}>
+                              {note.note_author === 'user' ? '用户' : '管理员'}
+                            </span>
+                            <span>{new Date(note.created_at).toLocaleString()}</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); toggleNoteStatus(note.id, note.is_handled); }}
+                          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
+                            note.is_handled
+                              ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                              : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                          }`}
+                        >
+                          {note.is_handled ? '已处理' : '待处理'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-            <div className="divide-y divide-gray-100">
-              {userGroup.notes.map(note => (
-                <div key={note.id} className="px-4 py-3 hover:bg-gray-50 transition-colors">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      {(note.ticket_code || note.session_name) && (
-                        <div className="flex items-center gap-2 mb-1">
-                          {note.ticket_code && (
-                            <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">{note.ticket_code}</span>
-                          )}
-                          {note.session_name && (
-                            <span className="text-[10px] text-gray-400">{note.session_name} · {note.session_date}</span>
-                          )}
-                        </div>
-                      )}
-                      <p className="text-xs text-gray-600 whitespace-pre-wrap mb-2">{note.note_content}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                        <span className={`px-1.5 py-0.5 rounded ${note.note_author === 'user' ? 'bg-sky-50 text-sky-600' : 'bg-purple-50 text-purple-600'}`}>
-                          {note.note_author === 'user' ? '用户' : '管理员'}
-                        </span>
-                        <span>{new Date(note.created_at).toLocaleString()}</span>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => toggleNoteStatus(note.id, note.is_handled, note.source)}
-                      className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
-                        note.is_handled
-                          ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                          : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                      }`}
-                    >
-                      {note.is_handled ? '已处理' : '待处理'}
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))
-      )}
-
-      {/* Add note modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-xl p-5 w-full max-w-sm">
-            <h3 className="font-bold text-gray-900 text-base mb-3">为 {selectedUserName} 添加备注</h3>
-            <textarea
-              value={newNoteContent}
-              onChange={e => setNewNoteContent(e.target.value)}
-              placeholder="请输入备注内容（如：需轮椅服务、VIP接待等）"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none"
-              rows={4}
-            />
-            <div className="flex gap-2 mt-4">
-              <button
-                onClick={() => { setShowAddModal(false); setNewNoteContent(''); }}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={addUserNote}
-                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-sky-500 text-white hover:bg-sky-400 transition-colors"
-              >
-                添加
-              </button>
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </div>
