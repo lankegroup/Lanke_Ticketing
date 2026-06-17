@@ -229,9 +229,9 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.font = `${20 * D}px sans-serif`;
   ctx.fillText(subLabelEn, PAD, SUBLABEL_EN_Y);
 
-  ctx.setLineDash([8 * D, 6 * D]);
-  ctx.strokeStyle = '#374151';
-  ctx.lineWidth = 2 * D;
+  ctx.setLineDash([10 * D, 5 * D]);
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 3 * D;
   ctx.beginPath();
   ctx.moveTo(PAD, DIVIDER_Y);
   ctx.lineTo(W - PAD, DIVIDER_Y);
@@ -291,9 +291,9 @@ export function renderTicketToCanvas(p: TicketParams): void {
   iy += 12 * D;
 
   // Perforation divider
-  ctx.setLineDash([8 * D, 6 * D]);
-  ctx.strokeStyle = '#374151';
-  ctx.lineWidth = 2 * D;
+  ctx.setLineDash([10 * D, 5 * D]);
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 3 * D;
   ctx.beginPath();
   ctx.moveTo(PAD, iy);
   ctx.lineTo(W - PAD, iy);
@@ -349,13 +349,13 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 190 * D);
 
   // Copyright line — Chinese
-  ctx.fillStyle = '#78716c';
-  ctx.font = `${24 * D}px sans-serif`;
+  ctx.fillStyle = '#5c4a3a';
+  ctx.font = `${28 * D}px sans-serif`;
   ctx.fillText('© 兰克集团数智一体化票务运营平台', W / 2, fBase + 218 * D);
   // Copyright line — English
-  ctx.fillStyle = '#a8a29e';
-  ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Lanke Group Digital Ticketing Platform', W / 2, fBase + 244 * D);
+  ctx.fillStyle = '#5c4a3a';
+  ctx.font = `${28 * D}px sans-serif`;
+  ctx.fillText('Lanke Group Digital Ticketing Platform', W / 2, fBase + 248 * D);
 
   ctx.textAlign = 'left';
 }

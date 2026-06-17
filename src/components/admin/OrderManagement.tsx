@@ -2066,7 +2066,7 @@ function SessionEditor({
                         viewBox="0 0 60 24"
                         className="absolute"
                         style={{
-                          left: `${20 + 4 + (stageCenterCol - 1) * (28 + 2) + 28 / 2 - 60 / 2}px`,
+                          left: `${20 + 2 + (stageCenterCol - 1) * (28 + 2) + 28 / 2 - 60 / 2}px`,
                           bottom: 0
                         }}
                       >
