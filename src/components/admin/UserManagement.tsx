@@ -90,7 +90,7 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
         return;
       }
 
-      const createRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-create-user`, {
+      const createRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,7 +133,7 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
         return;
       }
 
-      const deleteRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-delete-user`, {
+      const deleteRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/delete-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

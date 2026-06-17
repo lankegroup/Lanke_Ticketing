@@ -168,17 +168,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: '系统配置错误：未配置 Supabase URL' };
       }
       
-      const prepareRes = await fetch(`${supabaseUrl}/functions/v1/admin-login`, {
+      const prepareRes = await fetch(`${supabaseUrl}/functions/v1/setup-admin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
         },
-        body: JSON.stringify({ username, password }),
       });
 
       const prepareData = await prepareRes.json();
-      if (!prepareRes.ok || !prepareData.success) {
+      if (!prepareRes.ok || !prepareData.ok) {
         return { error: prepareData.error || '登录准备失败，请联系管理员' };
       }
       
