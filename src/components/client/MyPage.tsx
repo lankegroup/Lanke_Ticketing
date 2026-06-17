@@ -66,7 +66,10 @@ export default function MyPage() {
 
   async function fetchTickets() {
     setLoading(true);
-    await callEdgeFunction('expire-tickets', {});
+    try {
+      await supabase.rpc('expire_past_tickets');
+      await supabase.rpc('auto_manage_session_status');
+    } catch { /* ignore */ }
     const { data } = await supabase
       .from('registrations')
       .select('*, sessions(name, session_date, start_time, end_time), seats(seat_name)')
@@ -78,11 +81,11 @@ export default function MyPage() {
   }
 
   async function handleCancelBooking(id: string) {
-    const { data, error } = await callEdgeFunction<{ success: boolean; error?: string }>('cancel-ticket', {
+    const { data, error } = await supabase.rpc('cancel_ticket', {
       p_registration_id: id,
       p_user_id: user?.id,
     });
-    if (error || !data?.success) {
+    if (error || (data as any)?.success === false) {
       showToast(t('operation_failed'), 'error');
     } else {
       showToast(t('cancel_success'), 'success');

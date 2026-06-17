@@ -92,7 +92,11 @@ function RegistrationsList() {
   }, [detail]);
 
   async function fetchData() {
-    await callEdgeFunction('expire-tickets', {});
+    // Replace Edge Function call with direct RPC
+    try {
+      await supabase.rpc('expire_past_tickets');
+      await supabase.rpc('auto_manage_session_status');
+    } catch { /* ignore */ }
     const [regsRes, sessRes] = await Promise.all([
       supabase
         .from('registrations')
@@ -170,11 +174,11 @@ function RegistrationsList() {
   }
 
   async function cancelReg(id: string) {
-    const { data, error } = await callEdgeFunction<{ success: boolean; error?: string }>('cancel-ticket', {
+    const { data, error } = await supabase.rpc('cancel_ticket', {
       p_registration_id: id,
       p_user_id: null,
     });
-    if (error || !data?.success) {
+    if (error || (data as any)?.success === false) {
       showToast(t('operation_failed'), 'error');
     } else {
       showToast(t('cancel_success'));
@@ -1116,7 +1120,10 @@ function SessionsManager() {
   async function fetchSessions() {
     const { data } = await supabase.from('sessions').select('*').order('session_date').order('start_time');
     setSessions(data ?? []);
-    callEdgeFunction('expire-tickets', {}).catch(() => {});
+    try {
+      await supabase.rpc('expire_past_tickets');
+      await supabase.rpc('auto_manage_session_status');
+    } catch { /* ignore */ }
   }
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
@@ -1480,6 +1487,19 @@ function SessionEditor({
 
   async function handleSave() {
     if (!name || !sessionDate || !startTime || !endTime) return;
+
+    // Validate end time is after start time
+    if (endTime <= startTime) {
+      setSeatSaveError('结束时间必须晚于开始时间');
+      return;
+    }
+
+    // Validate verification times if set
+    if (verStart && verEnd && verEnd <= verStart) {
+      setSeatSaveError('核销结束时间必须晚于核销开始时间');
+      return;
+    }
+
     const description = quillInstance.current?.root.innerHTML ?? initial.description ?? '';
     const bookingNoticeHtml = noticeQuillInstance.current?.root.innerHTML ?? initial.booking_notice ?? '';
 

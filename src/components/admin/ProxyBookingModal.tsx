@@ -228,22 +228,21 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
     const selectedSeat = seats.find(s => s.id === selectedSeatId);
     const isForce = pendingForce || (selectedSeat?.is_blocked ?? false);
 
-    const { data, error: err } = await callEdgeFunction<{ success: boolean; error?: string; ticket_code?: string }>(
-      'proxy-book-ticket',
-      {
-        p_session_id: selectedSession.id,
-        p_seat_id: selectedSeatId ?? undefined,
-        p_name: user.display_name || user.id.slice(0, 8),
-        p_phone: user.phone || '',
-        p_user_id: user.id,
-        p_force: isForce,
-        p_order_source: 'admin',
-        p_ticket_type: ticketType,
-      },
-    );
+    const { data, error: err } = await supabase.rpc('admin_book_ticket', {
+      p_session_id: selectedSession.id,
+      p_seat_id: selectedSeatId ?? null,
+      p_name: user.display_name || user.id.slice(0, 8),
+      p_phone: user.phone || '',
+      p_user_id: user.id,
+      p_force: isForce,
+      p_order_source: 'admin',
+      p_ticket_type: ticketType,
+    });
 
-    if (err || !data?.success) {
-      const msg = data?.error;
+    const rpcResult = data as any;
+
+    if (err || !rpcResult?.success) {
+      const msg = rpcResult?.error;
       if (msg === 'sold_out') setError('该场次已售罄');
       else if (msg === 'seat_taken') setError('座位已被预订，请返回重新选择');
       else if (msg === 'missing_params') setError('该用户缺少手机号，请先完善用户信息');
@@ -254,7 +253,7 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
 
     lockedSeatRef.current = null;
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
-    setTicketCode(data.ticket_code || '');
+    setTicketCode(rpcResult.ticket_code || '');
     setStep('done');
     setSubmitting(false);
     onSuccess();

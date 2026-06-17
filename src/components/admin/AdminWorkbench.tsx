@@ -662,33 +662,24 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     const results: { ticket_code: string; seat_name?: string; registration_id?: string; ticket_type?: TicketType }[] = [];
 
     for (const item of itemsToBook) {
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/proxy-book-ticket`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          'Authorization': `Bearer ${authSession?.access_token}`,
-        },
-        body: JSON.stringify({
-          p_session_id: selectedSession.id,
-          p_seat_id: item.seatId,
-          p_name: name.trim(),
-          p_phone: phone.trim(),
-          p_user_id: matchedUserId ?? null,
-          p_force: false,
-          p_order_source: 'front_desk',
-          p_is_supplementary: isSupplementary,
-          p_ticket_type: item.ticketType,
-        }),
+      const res = await supabase.rpc('admin_book_ticket', {
+        p_session_id: selectedSession.id,
+        p_seat_id: item.seatId,
+        p_name: name.trim(),
+        p_phone: phone.trim(),
+        p_user_id: matchedUserId ?? null,
+        p_force: false,
+        p_order_source: 'front_desk',
+        p_ticket_type: item.ticketType,
       });
-      const data = await res.json();
-      if (!res.ok || data?.error) {
+      const rpcResult = res.data as any;
+      if (res.error || !rpcResult?.success) {
         setSubmitting(false);
-        setError(data?.error || '出票失败，请重试');
+        setError(rpcResult?.error || '出票失败，请重试');
         return;
       }
       const seatName = item.seatId ? seats.find(s => s.id === item.seatId)?.seat_name : undefined;
-      results.push({ ticket_code: data.ticket_code, seat_name: seatName, registration_id: data.registration_id, ticket_type: item.ticketType });
+      results.push({ ticket_code: rpcResult.ticket_code, seat_name: seatName, registration_id: rpcResult.registration_id, ticket_type: item.ticketType });
     }
 
     setSubmitting(false);

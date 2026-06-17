@@ -597,23 +597,20 @@ function BookingFormView({
       const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
       const ticketType = order.ticketType;
 
-      const { data, error: err } = await callEdgeFunction<{ success: boolean; error?: string }>('book-ticket', {
-        p_session_id: session.id,
-        p_name: name.trim(),
-        p_phone: trimmedPhone,
-        p_user_id: effectiveUserId,
-        p_buyer_user_id: buyerUserId ?? undefined,
-        p_seat_id: seatId ?? undefined,
-        p_ticket_type: ticketType,
-        p_note_content: noteContent.trim() || undefined,
-      });
+      const rpcName = seatId ? 'book_ticket_with_seat' : 'book_ticket';
+      const rpcBody = seatId
+        ? { p_session_id: session.id, p_seat_id: seatId, p_name: name.trim(), p_phone: trimmedPhone, p_user_id: effectiveUserId ?? null, p_ticket_type: ticketType, p_buyer_user_id: buyerUserId ?? null, p_note_content: noteContent.trim() || null }
+        : { p_session_id: session.id, p_name: name.trim(), p_phone: trimmedPhone, p_user_id: effectiveUserId ?? null, p_ticket_type: ticketType, p_buyer_user_id: buyerUserId ?? null, p_note_content: noteContent.trim() || null };
 
-      if (err || !data?.success) {
-        if (data?.error === 'sold_out') {
+      const { data, error: err } = await supabase.rpc(rpcName, rpcBody);
+      const rpcResult = data as any;
+
+      if (err || !rpcResult?.success) {
+        if (rpcResult?.error === 'sold_out') {
           onSoldOut();
           setSubmitting(false);
           return;
-        } else if (data?.error === 'seat_taken' || data?.error === 'lock_expired') {
+        } else if (rpcResult?.error === 'seat_taken' || rpcResult?.error === 'lock_expired') {
           errors.push(hasSeats ? (order as SeatWithTicket).seatName : `Order ${i + 1}`);
         } else {
           errors.push(`Order ${i + 1}`);

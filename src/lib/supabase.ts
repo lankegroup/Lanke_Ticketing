@@ -23,22 +23,26 @@ export async function uploadImageViaFunction(
   file: File,
   folder: string,
 ): Promise<{ url: string | null; error: string | null }> {
-  const session = (await supabase.auth.getSession()).data.session;
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('folder', folder);
+  const ext = file.name.split('.').pop() ?? 'bin';
+  const filename = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
   try {
-    const res = await fetch(`${supabaseUrl}/functions/v1/upload-image`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${session?.access_token ?? ''}`,
-        Apikey: supabaseAnonKey,
-      },
-      body: formData,
-    });
-    const data = await res.json();
-    if (!res.ok || !data?.url) return { url: null, error: data?.error ?? 'upload failed' };
-    return { url: data.url, error: null };
+    const { data, error } = await supabase.storage
+      .from('announcements')
+      .upload(filename, file, {
+        contentType: file.type || 'application/octet-stream',
+        upsert: true,
+      });
+
+    if (error || !data?.path) {
+      return { url: null, error: error?.message ?? 'upload failed' };
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('announcements')
+      .getPublicUrl(data.path);
+
+    return { url: urlData.publicUrl, error: null };
   } catch (e: any) {
     return { url: null, error: e.message };
   }
