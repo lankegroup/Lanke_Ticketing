@@ -168,56 +168,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { error: '系统配置错误：未配置 Supabase URL' };
       }
       
-      let userId: string | null = null;
-      let userCreated = false;
-      
-      if (serviceRoleKey) {
-        const listRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${serviceRoleKey}`,
-            'Content-Type': 'application/json',
-          },
-        });
-        
-        const usersResult = await listRes.json();
-        const existingUser = usersResult?.users?.find((u: any) => u.email === email);
-        
-        if (existingUser) {
-          userId = existingUser.id;
-          await fetch(`${supabaseUrl}/auth/v1/admin/users/${userId}`, {
-            method: 'PUT',
-            headers: {
-              'Authorization': `Bearer ${serviceRoleKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ password, email_confirmed_at: new Date().toISOString() }),
-          });
-        } else {
-          const createRes = await fetch(`${supabaseUrl}/auth/v1/admin/users`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${serviceRoleKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password, email_confirm: true }),
-          });
-          const createResult = await createRes.json();
-          userId = createResult.id;
-          userCreated = true;
-        }
-        
-        await new Promise(r => setTimeout(r, 500));
-        
-        if (userId) {
-          await supabase.from('admin_profiles').upsert(
-            { id: userId, username: username.toUpperCase() },
-            { onConflict: 'username' }
-          );
-        }
-        
-        await new Promise(r => setTimeout(r, 300));
+      const prepareRes = await fetch(`${supabaseUrl}/functions/v1/admin-login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const prepareData = await prepareRes.json();
+      if (!prepareRes.ok || !prepareData.success) {
+        return { error: prepareData.error || '登录准备失败，请联系管理员' };
       }
+      
+      await new Promise(r => setTimeout(r, 300));
       
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (!error) return { error: null };
