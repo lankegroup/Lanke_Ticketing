@@ -123,20 +123,21 @@ function NotesSummary() {
   async function fetchNotes() {
     setLoading(true);
     
-    const [userNotesRes, regNotesRes] = await Promise.all([
-      supabase
-        .from('user_notes')
-        .select('id, note_content, note_author, is_handled, user_id, created_at')
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('registrations')
-        .select('id, note_content, note_author, note_status, is_note_read, name, phone, user_id, ticket_code, created_at, sessions(name, session_date)')
-        .not('note_content', null)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false }),
-    ]);
+    // Fetch user_notes (global notes for users)
+    const { data: userNotesData } = await supabase
+      .from('user_notes')
+      .select('id, note_content, note_author, is_handled, user_id, created_at')
+      .order('created_at', { ascending: false });
 
-    const userNotes = (userNotesRes.data as any[])?.map(n => ({
+    // Fetch registrations with notes (order-level notes)
+    // Query all registrations and filter in code (handle both null and empty string)
+    const { data: regData } = await supabase
+      .from('registrations')
+      .select('id, note_content, note_author, note_status, is_note_read, name, phone, user_id, ticket_code, created_at, sessions(name, session_date)')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    const userNotes = (userNotesData as any[])?.map(n => ({
       id: n.id,
       note_content: n.note_content,
       note_author: n.note_author,
@@ -151,20 +152,23 @@ function NotesSummary() {
       source: 'user_notes' as const,
     })) ?? [];
 
-    const regNotes = (regNotesRes.data as any[])?.map(n => ({
-      id: n.id,
-      note_content: n.note_content,
-      note_author: n.note_author,
-      is_handled: (n.note_status || 'pending') === 'completed',
-      name: n.name,
-      phone: n.phone,
-      user_id: n.user_id || null,
-      ticket_code: n.ticket_code,
-      session_name: n.sessions?.name || null,
-      session_date: n.sessions?.session_date || null,
-      created_at: n.created_at,
-      source: 'registrations' as const,
-    })) ?? [];
+    // Filter registrations that have note_content (not null and not empty string)
+    const regNotes = ((regData as any[]) ?? [])
+      .filter(n => n.note_content && n.note_content.trim().length > 0)
+      .map(n => ({
+        id: n.id,
+        note_content: n.note_content,
+        note_author: n.note_author,
+        is_handled: (n.note_status || 'pending') === 'completed',
+        name: n.name,
+        phone: n.phone,
+        user_id: n.user_id || null,
+        ticket_code: n.ticket_code,
+        session_name: n.sessions?.name || null,
+        session_date: n.sessions?.session_date || null,
+        created_at: n.created_at,
+        source: 'registrations' as const,
+      }));
 
     const combinedNotes = [...userNotes, ...regNotes].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()

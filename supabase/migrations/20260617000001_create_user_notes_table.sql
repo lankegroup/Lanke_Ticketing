@@ -2,11 +2,19 @@
 -- Create user_notes table for global user notes
 -- ============================================================
 
+-- Create ENUM type for note_author
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'note_author_enum') THEN
+    CREATE TYPE public.note_author_enum AS ENUM ('user', 'admin');
+  END IF;
+END $$;
+
 CREATE TABLE IF NOT EXISTS public.user_notes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   note_content TEXT NOT NULL,
-  note_author 'user' | 'admin' NOT NULL DEFAULT 'user',
+  note_author public.note_author_enum NOT NULL DEFAULT 'user',
   is_handled BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()

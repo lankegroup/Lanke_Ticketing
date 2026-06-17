@@ -168,21 +168,21 @@ export default function QRCodeView({ ticket, onBack }: Props) {
               </div>
             </div>
 
-            {/* Notes section */}
+            {/* Notes section - Read only, no copy allowed */}
             {hasNotes && (
               <div className="relative z-10 mx-6 mb-4 bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
-                <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">{isEn ? 'Notes' : '备注信息'}</p>
+                <p className="text-slate-500 text-[10px] uppercase tracking-wider mb-2 select-none">{isEn ? 'Notes' : '备注信息'}</p>
                 <div className="space-y-2">
                   {orderNote && (
                     <div className="bg-sky-500/10 rounded-lg px-3 py-2">
-                      <p className="text-slate-400 text-[9px] mb-1">{isEn ? 'Order Note' : '订单备注'}</p>
-                      <p className="text-slate-200 text-xs whitespace-pre-wrap">{orderNote}</p>
+                      <p className="text-slate-400 text-[9px] mb-1 select-none">{isEn ? 'Order Note' : '订单备注'}</p>
+                      <p className="text-slate-200 text-xs whitespace-pre-wrap select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>{orderNote}</p>
                     </div>
                   )}
                   {userNotes.map((note, idx) => (
                     <div key={idx} className="bg-purple-500/10 rounded-lg px-3 py-2">
-                      <p className="text-slate-400 text-[9px] mb-1">{isEn ? 'Admin Note' : '补充备注'}</p>
-                      <p className="text-slate-200 text-xs whitespace-pre-wrap">{note.note_content}</p>
+                      <p className="text-slate-400 text-[9px] mb-1 select-none">{isEn ? 'Admin Note' : '补充备注'}</p>
+                      <p className="text-slate-200 text-xs whitespace-pre-wrap select-none" style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>{note.note_content}</p>
                     </div>
                   ))}
                 </div>
