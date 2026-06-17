@@ -10,6 +10,7 @@ import Toast from '../Toast';
 import PrintConfirmModal, { PrintConfirmResult } from './PrintConfirmModal';
 import SessionDetailView from './SessionDetailView';
 import SeatMap from '../SeatMap';
+import AdminSeatPreview from './AdminSeatPreview';
 
 type TabMode = 'registrations' | 'sessions';
 
@@ -2024,93 +2025,24 @@ function SessionEditor({
                 )}
                 {hasSeatingChart && blockSeats.length > 0 && (
                   <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-emerald-200" /><span className="text-[10px] text-gray-400">空闲</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-sky-400" /><span className="text-[10px] text-gray-400">成人票</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-teal-500" /><span className="text-[10px] text-gray-400">儿童票</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-amber-400" /><span className="text-[10px] text-gray-400">优待票</span></div>
-                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded bg-red-400" /><span className="text-[10px] text-gray-400">已屏蔽</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-lg bg-emerald-100" /><span className="text-[10px] text-gray-400">空闲</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-lg bg-sky-400" /><span className="text-[10px] text-gray-400">成人票</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-lg bg-teal-500" /><span className="text-[10px] text-gray-400">儿童票</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-lg bg-amber-400" /><span className="text-[10px] text-gray-400">优待票</span></div>
+                    <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-lg bg-red-400" /><span className="text-[10px] text-gray-400">已屏蔽</span></div>
                   </div>
                 )}
-                <div className="border border-gray-100 rounded-xl p-4 bg-gray-50 overflow-auto" style={{ zoom: 1.4 }}>
-                  {screenDirection === 'top' && (
-                    <div className="relative mb-3 h-8" style={{ width: `${20 + 4 + previewCols * (28 + 2) - 2}px` }}>
-                      <svg
-                        width="60"
-                        height="24"
-                        viewBox="0 0 60 24"
-                        className="absolute"
-                        style={{
-                          left: `${20 + 2 + (stageCenterCol - 1) * (28 + 2) + 28 / 2 - 60 / 2}px`,
-                          bottom: 0
-                        }}
-                      >
-                        <rect x="4" y="2" width="52" height="18" rx="4" ry="4" fill="rgb(243, 244, 246)" stroke="rgb(156, 163, 175)" strokeWidth="1" />
-                        <rect x="13" y="7" width="8" height="6" rx="0.8" fill="none" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
-                        <line x1="17" y1="13" x2="17" y2="15" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
-                        <line x1="14" y1="15" x2="20" y2="15" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
-                        <text x="30" y="13" textAnchor="start" fontSize="7.5" fill="rgb(107, 114, 128)" fontWeight="500">舞台</text>
-                      </svg>
-                      <div className="border-t border-gray-200 mt-2"></div>
-                    </div>
-                  )}
-                  <div className="space-y-1">
-                    {Array.from({ length: previewRows }, (_, r) => (
-                      <div key={r} className="flex items-center gap-0.5">
-                        <span className="text-[9px] text-gray-400 w-5 text-center">{String.fromCharCode(65 + r)}</span>
-                        {Array.from({ length: previewCols }, (_, c) => {
-                          const key = `R${r}-C${c}`;
-                          const blocked = previewBlocked.has(key);
-                          const booked = !blocked && previewBooked.has(key);
-                          const bookedType = booked ? (previewTicketTypes[key] ?? 'adult') : null;
-                          return (
-                            <button
-                              key={c}
-                              type="button"
-                              onClick={() => handlePreviewSeatClick(r, c)}
-                              disabled={blockSaving}
-                              title={
-                                blocked ? '已屏蔽，点击解除' :
-                                booked ? `已售出（${bookedType === 'adult' ? '成人票' : bookedType === 'child' ? '儿童票' : '优待票'}），点击管理` :
-                                '点击屏蔽'
-                              }
-                              className={`w-7 h-7 rounded-md text-[9px] font-bold flex items-center justify-center leading-none transition-colors ${
-                                blocked
-                                  ? 'bg-red-400 text-white'
-                                  : bookedType
-                                    ? PREVIEW_BOOKED_CLS[bookedType]
-                                    : 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200'
-                              }`}
-                            >
-                              {blocked ? '×' : bookedType ? PREVIEW_BOOKED_LABEL[bookedType] : c + 1}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                  {screenDirection === 'bottom' && (
-                    <div className="relative mt-3 h-8">
-                      <div className="border-t border-gray-200 mb-2"></div>
-                      <svg
-                        width="60"
-                        height="24"
-                        viewBox="0 0 60 24"
-                        className="absolute"
-                        style={{
-                          left: `calc(${22 + (stageCenterCol - 1) * 30 + 14 - 30}px)`,
-                          top: 0
-                        }}
-                      >
-                        <rect x="4" y="4" width="52" height="18" rx="4" ry="4" fill="rgb(243, 244, 246)" stroke="rgb(156, 163, 175)" strokeWidth="1" />
-                        {/* Monitor icon symmetric */}
-                        <rect x="13" y="9" width="8" height="6" rx="0.8" fill="none" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
-                        <line x1="17" y1="15" x2="17" y2="17" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
-                        <line x1="14" y1="17" x2="20" y2="17" stroke="rgb(107, 114, 128)" strokeWidth="0.9" />
-                        <text x="30" y="15" textAnchor="start" fontSize="7.5" fill="rgb(107, 114, 128)" fontWeight="500">舞台</text>
-                      </svg>
-                    </div>
-                  )}
-                </div>
+                <AdminSeatPreview
+                  rows={previewRows}
+                  cols={previewCols}
+                  screenDirection={screenDirection as 'top' | 'bottom'}
+                  stageCenterCol={stageCenterCol}
+                  previewBlocked={previewBlocked}
+                  previewBooked={previewBooked}
+                  previewTicketTypes={previewTicketTypes}
+                  onSeatClick={handlePreviewSeatClick}
+                  disabled={blockSaving}
+                />
                 {previewBlocked.size > 0 && (
                   <p className="text-[10px] text-red-500 mt-1">
                     已选择屏蔽 {previewBlocked.size} 个座位{!savedSessionId ? '（保存场次后自动应用）' : ''}
