@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { TicketType } from '../lib/supabase';
 
 interface AdminSeatPreviewProps {
@@ -122,60 +122,71 @@ export default function AdminSeatPreview({
   };
 
   return (
-    <div className="flex justify-center">
-      <div className="border border-gray-100 rounded-xl p-4 bg-gray-50">
-        <div className="overflow-x-auto">
-          <div className="inline-block">
-            {screenDirection === 'top' && renderStage()}
-            <div className="space-y-1">
-              {Array.from({ length: rows }, (_, r) => (
-                <div key={r} className="flex items-center" style={{ gap: `${SEAT_GAP}px` }}>
-                  <span
-                    className="text-[10px] font-bold text-gray-400 flex-shrink-0 flex items-center justify-center"
-                    style={{ width: `${ROW_LABEL_WIDTH}px`, height: `${SEAT_HEIGHT}px` }}
-                  >
-                    {String.fromCharCode(65 + r)}
-                  </span>
-                  <div className="flex" style={{ gap: `${SEAT_GAP}px` }}>
-                    {Array.from({ length: cols }, (_, c) => {
-                      const key = `R${r}-C${c}`;
-                      const blocked = previewBlocked.has(key);
-                      const booked = !blocked && previewBooked.has(key);
-                      const bookedType = booked ? (previewTicketTypes[key] ?? 'adult') : null;
+    <div className="border border-gray-100 rounded-xl p-4 bg-gray-50" style={{ width: '100%', maxWidth: '100%' }}>
+      <div
+        className="seat-scroll-container"
+        style={{
+          width: '100%',
+          maxWidth: '100%',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          paddingBottom: '10px',
+        }}
+      >
+        <div
+          className="inline-block"
+          style={{ width: `${totalWidth}px`, minWidth: '100%' }}
+        >
+          {screenDirection === 'top' && renderStage()}
+          <div className="space-y-1">
+            {Array.from({ length: rows }, (_, r) => (
+              <div key={r} className="flex items-center" style={{ gap: `${SEAT_GAP}px` }}>
+                <span
+                  className="text-[10px] font-bold text-gray-400 flex-shrink-0 flex items-center justify-center"
+                  style={{ width: `${ROW_LABEL_WIDTH}px`, height: `${SEAT_HEIGHT}px` }}
+                >
+                  {String.fromCharCode(65 + r)}
+                </span>
+                <div className="flex" style={{ gap: `${SEAT_GAP}px` }}>
+                  {Array.from({ length: cols }, (_, c) => {
+                    const key = `R${r}-C${c}`;
+                    const blocked = previewBlocked.has(key);
+                    const booked = !blocked && previewBooked.has(key);
+                    const bookedType = booked ? (previewTicketTypes[key] ?? 'adult') : null;
 
-                      return (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => !disabled && onSeatClick(r, c)}
-                          disabled={disabled}
-                          onMouseEnter={() => setHoveredSeat({ row: r, col: c })}
-                          onMouseLeave={() => setHoveredSeat(null)}
-                          onTouchStart={() => !disabled && setHoveredSeat({ row: r, col: c })}
-                          onTouchEnd={() => setHoveredSeat(null)}
-                          title={
-                            blocked
-                              ? '已屏蔽，点击解除'
-                              : booked
-                              ? `已售出（${bookedType === 'adult' ? '成人票' : bookedType === 'child' ? '儿童票' : '优待票'}），点击管理`
-                              : '点击屏蔽'
-                          }
-                          className={`${getSeatClass(r, c)} text-[10px] font-bold rounded-lg shadow-sm`}
-                          style={{
-                            width: `${SEAT_WIDTH}px`,
-                            height: `${SEAT_HEIGHT}px`,
-                          }}
-                        >
-                          {getSeatContent(r, c)}
-                        </button>
-                      );
-                    })}
-                  </div>
+                    return (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => !disabled && onSeatClick(r, c)}
+                        disabled={disabled}
+                        onMouseEnter={() => setHoveredSeat({ row: r, col: c })}
+                        onMouseLeave={() => setHoveredSeat(null)}
+                        onTouchStart={() => !disabled && setHoveredSeat({ row: r, col: c })}
+                        onTouchEnd={() => setHoveredSeat(null)}
+                        title={
+                          blocked
+                            ? '已屏蔽，点击解除'
+                            : booked
+                            ? `已售出（${bookedType === 'adult' ? '成人票' : bookedType === 'child' ? '儿童票' : '优待票'}），点击管理`
+                            : '点击屏蔽'
+                        }
+                        className={`${getSeatClass(r, c)} text-[10px] font-bold rounded-lg shadow-sm`}
+                        style={{
+                          width: `${SEAT_WIDTH}px`,
+                          height: `${SEAT_HEIGHT}px`,
+                        }}
+                      >
+                        {getSeatContent(r, c)}
+                      </button>
+                    );
+                  })}
                 </div>
-              ))}
-            </div>
-            {screenDirection === 'bottom' && renderStageBottom()}
+              </div>
+            ))}
           </div>
+          {screenDirection === 'bottom' && renderStageBottom()}
         </div>
       </div>
     </div>
