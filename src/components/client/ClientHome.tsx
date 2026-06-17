@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, Announcement, Session, SeatMapRow, formatSeatName, TicketType } from '../../lib/supabase';
+import { validateRemark, getRemarkLimit } from '../../lib/remarkValidator';
 import { useAuth } from '../../contexts/AuthContext';
 import { ChevronRight, Calendar, Clock, Users, ArrowLeft, X, LayoutGrid, Plus, Minus, Ticket } from 'lucide-react';
 import Toast from '../Toast';
@@ -517,6 +518,8 @@ function BookingFormView({
   const [name, setName] = useState(prefillName);
   const [phone, setPhone] = useState(prefillPhone);
   const [noteContent, setNoteContent] = useState('');
+  const [noteValidationError, setNoteValidationError] = useState('');
+  const [noteLimit, setNoteLimit] = useState({ chinese: 0, western: 0, maxChinese: 30, maxWestern: 20 });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -535,6 +538,13 @@ function BookingFormView({
     e.preventDefault();
     if (!name.trim()) { setError(t('fill_name')); return; }
     if (!phone.trim()) { setError(t('fill_phone')); return; }
+    
+    const noteValidation = validateRemark(noteContent);
+    if (!noteValidation.valid) {
+      setError(noteValidation.message);
+      return;
+    }
+    
     setError('');
 
     // New booking time logic: StopSellingTime = verifyDate + verifyEndTime - stopSellingMinutes
@@ -750,13 +760,32 @@ function BookingFormView({
             </label>
             <textarea
               value={noteContent}
-              onChange={e => setNoteContent(e.target.value)}
+              onChange={e => {
+                const newValue = e.target.value;
+                setNoteContent(newValue);
+                const limit = getRemarkLimit(newValue);
+                setNoteLimit(limit);
+                const validation = validateRemark(newValue);
+                setNoteValidationError(validation.valid ? '' : validation.message);
+              }}
               placeholder={isEn ? 'Add any special requirements...' : '如有特殊需求请在此填写...'}
               rows={2}
               maxLength={200}
-              className={`w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400 resize-none ${isEn ? 'text-xs' : 'text-sm'}`}
+              className={`w-full border rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 resize-none ${
+                isEn ? 'text-xs' : 'text-sm'
+              } ${noteValidationError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-sky-400'}`}
             />
-            <p className="text-[10px] text-gray-400 mt-1">{isEn ? 'Notes cannot be modified after submission' : '备注提交后不可修改'}</p>
+            <div className="flex items-center justify-between mt-1">
+              <p className="text-[10px] text-gray-400">{isEn ? 'Notes cannot be modified after submission' : '备注提交后不可修改'}</p>
+              {noteContent && (
+                <span className={`text-[10px] ${noteValidationError ? 'text-red-500' : 'text-gray-400'}`}>
+                  {noteLimit.chinese}/{noteLimit.maxChinese} 中 · {noteLimit.western}/{noteLimit.maxWestern} 西
+                </span>
+              )}
+            </div>
+            {noteValidationError && (
+              <p className="text-[10px] text-red-500 mt-1">{noteValidationError}</p>
+            )}
           </div>
           {error && <p className="text-red-500 text-xs">{error}</p>}
         </div>

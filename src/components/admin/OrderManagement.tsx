@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, uploadImageViaFunction, Registration, Session, SeatMapRow, TicketType, TICKET_TYPE_LABELS, getDisplayStatus } from '../../lib/supabase';
+import { validateRemark } from '../../lib/remarkValidator';
 import { useAuth } from '../../contexts/AuthContext';
 import { Plus, Trash2, Calendar, Users, Clock, Filter, Search, X, CheckCircle, AlertCircle, Edit3, ArrowLeft, Image, LayoutGrid, Ban, RefreshCw, Printer, Ticket } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -676,7 +677,14 @@ function RegistrationsList() {
                     <div className="mt-2 pt-2 border-t border-gray-200 space-y-2">
                       <textarea
                         value={adminNoteContent}
-                        onChange={e => setAdminNoteContent(e.target.value)}
+                        onChange={e => {
+                          const newValue = e.target.value;
+                          setAdminNoteContent(newValue);
+                          const validation = validateRemark(newValue);
+                          if (!validation.valid) {
+                            showToast(validation.message, 'error');
+                          }
+                        }}
                         placeholder="补充管理员备注..."
                         rows={2}
                         maxLength={200}
@@ -685,6 +693,11 @@ function RegistrationsList() {
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
+                            const validation = validateRemark(adminNoteContent);
+                            if (!validation.valid) {
+                              showToast(validation.message, 'error');
+                              return;
+                            }
                             const { error } = await supabase.from('registrations').update({
                               note_content: (detail.note_content || '') + '\n[管理员补充] ' + adminNoteContent,
                               note_author: 'admin',
@@ -717,7 +730,14 @@ function RegistrationsList() {
                     <div className="space-y-2">
                       <textarea
                         value={adminNoteContent}
-                        onChange={e => setAdminNoteContent(e.target.value)}
+                        onChange={e => {
+                          const newValue = e.target.value;
+                          setAdminNoteContent(newValue);
+                          const validation = validateRemark(newValue);
+                          if (!validation.valid) {
+                            showToast(validation.message, 'error');
+                          }
+                        }}
                         placeholder="输入管理员备注（代用户记录）..."
                         rows={2}
                         maxLength={200}
@@ -726,6 +746,11 @@ function RegistrationsList() {
                       <div className="flex gap-2">
                         <button
                           onClick={async () => {
+                            const validation = validateRemark(adminNoteContent);
+                            if (!validation.valid) {
+                              showToast(validation.message, 'error');
+                              return;
+                            }
                             const { error } = await supabase.from('registrations').update({
                               note_content: adminNoteContent,
                               note_author: 'admin',
