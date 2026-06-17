@@ -1556,16 +1556,13 @@ function SessionEditor({
     const description = quillInstance.current?.root.innerHTML ?? initial.description ?? '';
     const bookingNoticeHtml = noticeQuillInstance.current?.root.innerHTML ?? initial.booking_notice ?? '';
 
-    // Feature 1: validate available_stock <= availableSeats
+    let finalAvailableStock = availableStock;
     if (hasSeatingChart && seatRows > 0 && seatsPerRow > 0) {
       const blockedCount = savedSessionId
         ? blockSeats.filter(s => s.is_blocked).length
         : previewBlocked.size;
       const availableSeats = seatRows * seatsPerRow - blockedCount;
-      if (availableStock > availableSeats) {
-        setFieldError('availableStock', `票额上限（${availableStock}）不能超过可用座位数（${availableSeats} = ${seatRows}×${seatsPerRow} - ${blockedCount}个屏蔽座位），请调低票额或减少屏蔽座位。`);
-        return;
-      }
+      finalAvailableStock = availableSeats;
     }
 
     setSaving(true);
@@ -1575,7 +1572,7 @@ function SessionEditor({
       session_date: sessionDate,
       start_time: startTime,
       end_time: endTime,
-      available_stock: availableStock,
+      available_stock: finalAvailableStock,
       verification_start: verStart || null,
       verification_end: verEnd || null,
       verify_date: verifyDate || null,

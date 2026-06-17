@@ -585,8 +585,8 @@ function ChangeSeatModal({
     }
   }
 
-  const actualRows = seats.length > 0 ? Math.max(...seats.map(s => s.row_index)) : (session?.seat_rows ?? 1);
-  const actualCols = seats.length > 0 ? Math.max(...seats.map(s => s.col_index)) : (session?.seats_per_row ?? 1);
+  const actualRows = seats.length > 0 ? Math.max(...seats.map(s => s.row_index)) + 1 : (session?.seat_rows ?? 1);
+  const actualCols = seats.length > 0 ? Math.max(...seats.map(s => s.col_index)) + 1 : (session?.seats_per_row ?? 1);
   const selectedSeat = seats.find(s => s.id === selectedSeatId);
   const currentSeatName = (ticket as any).seats?.seat_name ?? '';
 
