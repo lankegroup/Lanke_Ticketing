@@ -120,18 +120,23 @@ export function renderTicketToCanvas(p: TicketParams): void {
   const hasFee = p.serviceFee !== undefined && p.serviceFee > 0;
   const hasTotal = hasPrice;
 
-  const rowCount = 6 + 
-    (verifRange ? 1 : 0) + 
-    (p.seatName ? 1 : 0) + 
-    (p.ticketType ? 1 : 0) + 
-    (hasPrice ? 1 : 0) + 
-    (hasTotal ? 1 : 0) + 
-    (p.paidAt ? 1 : 0) + 
-    (p.printedAt ? 1 : 0);
+  const rows = [
+    { cn: '活动时间', en: 'Event Time', cnVal: activityTimeCn, enVal: activityTimeEn },
+    ...(verifRange ? [{ cn: '核销时间', en: 'Check-in Time', cnVal: verifRange, enVal: verifRange }] : []),
+    { cn: '用户名', en: 'Username', cnVal: p.name, enVal: nameEn },
+    ...(p.seatName ? [{ cn: '座位', en: 'Seat', cnVal: p.seatName, enVal: seatEn }] : []),
+    ...(p.ticketType ? [{ cn: '票种', en: 'Ticket Type', cnVal: ticketTypeCn[p.ticketType], enVal: ticketTypeEn[p.ticketType], color: ticketTypeColor[p.ticketType] }] : []),
+    { cn: '操作员', en: 'Operator', cnVal: operatorCn, enVal: operatorEn },
+    { cn: '下单时间', en: 'Order Time', cnVal: p.orderTime, enVal: p.orderTime },
+    ...(hasPrice ? [{ type: 'price' }] : []),
+    ...(hasTotal ? [{ type: 'total' }] : []),
+    ...(p.paidAt ? [{ cn: '付款时间', en: 'Payment Time', cnVal: p.paidAt, enVal: p.paidAt }] : []),
+    ...(p.printedAt ? [{ cn: '打印时间', en: 'Print Time', cnVal: p.printedAt, enVal: p.printedAt }] : []),
+  ];
 
   const HEADER_H = 120 * D;
   const DATA_START_Y = HEADER_H + 20 * D;
-  const DATA_H = rowCount * ROW_HEIGHT;
+  const DATA_H = rows.length * ROW_HEIGHT;
   const PERF_Y = DATA_START_Y + DATA_H;
   const QR_Y = PERF_Y + 30 * D;
   const FOOTER_H = 260 * D;
@@ -155,7 +160,6 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.strokeRect(1, 1, W - 2, H - 2);
 
   // ── Badges ───────────────────────────────────────────────────────────
-  let badgeY = 22 * D;
   function drawBadge(label: string, color: string) {
     ctx.font = `bold ${26 * D}px sans-serif`;
     const textWidth = ctx.measureText(label).width;
@@ -164,37 +168,40 @@ export function renderTicketToCanvas(p: TicketParams): void {
     const BW = textWidth + paddingX * 2;
     const BH = 26 * D + paddingY * 2;
     const BX = W - PAD - BW - 8 * D;
+    const BY = 22 * D;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(BX, badgeY, BW, BH, 12 * D);
+    ctx.roundRect(BX, BY, BW, BH, 12 * D);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, BX + BW / 2, badgeY + BH / 2);
+    ctx.fillText(label, BX + BW / 2, BY + BH / 2);
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
-    badgeY += BH + 6 * D;
   }
   if (p.isReprint) drawBadge('补打小票', '#dc2626');
   if (p.isSupplementary) drawBadge('补票', '#f97316');
 
   // ── Header ───────────────────────────────────────────────────────────
+  ctx.textBaseline = 'bottom';
+  
   ctx.font = `bold ${36 * D}px sans-serif`;
   ctx.fillStyle = '#0f172a';
-  ctx.fillText(p.sessionName, PAD, 76 * D);
+  ctx.fillText(p.sessionName, PAD, 80 * D);
 
   ctx.font = `bold ${24 * D}px sans-serif`;
-  ctx.fillText(sessionNameEn, PAD, 104 * D);
+  ctx.fillText(sessionNameEn, PAD, 110 * D);
 
   ctx.font = `${20 * D}px sans-serif`;
   ctx.fillStyle = '#0ea5e9';
   ctx.textAlign = 'right';
-  ctx.fillText(subLabelCn, W - PAD, 76 * D);
+  ctx.fillText(subLabelCn, W - PAD, 80 * D);
 
   ctx.font = `${18 * D}px sans-serif`;
-  ctx.fillText(subLabelEn, W - PAD, 104 * D);
+  ctx.fillText(subLabelEn, W - PAD, 110 * D);
   ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
 
   // ── Divider ──────────────────────────────────────────────────────────
   ctx.setLineDash([12 * D, 4 * D]);
@@ -248,7 +255,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
     ctx.fillText(priceValue, VALUE_X, y);
 
     if (hasFee) {
-      const feeLabelX = W - PAD - 120 * D;
+      const feeLabelX = W - PAD - 150 * D;
       
       ctx.fillStyle = LABEL_COLOR;
       ctx.font = `${LABEL_SIZE}px sans-serif`;
@@ -260,8 +267,8 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
       ctx.fillStyle = VALUE_COLOR;
       ctx.font = `${VALUE_SIZE}px sans-serif`;
-      const feeValue = `${currency.symbol}${p.serviceFee!.toFixed(2)}${currency.cnUnit ? `/${p.serviceFee!.toFixed(2)}${currency.cnUnit}` : ''}`;
       ctx.textAlign = 'right';
+      const feeValue = `${currency.symbol}${p.serviceFee!.toFixed(2)}${currency.cnUnit ? `/${p.serviceFee!.toFixed(2)}${currency.cnUnit}` : ''}`;
       ctx.fillText(feeValue, W - PAD, y);
       ctx.textAlign = 'left';
     }
@@ -285,51 +292,14 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // ── Data rows ─────────────────────────────────────────────────────────
   let iy = DATA_START_Y;
-
-  drawRow('活动时间', 'Event Time', activityTimeCn, activityTimeEn, iy);
-  iy += ROW_HEIGHT;
-
-  if (verifRange) {
-    drawRow('核销时间', 'Check-in Time', verifRange, verifRange, iy);
-    iy += ROW_HEIGHT;
-  }
-
-  drawRow('用户名', 'Username', p.name, nameEn, iy);
-  iy += ROW_HEIGHT;
-
-  if (p.seatName) {
-    drawRow('座位', 'Seat', p.seatName, seatEn, iy);
-    iy += ROW_HEIGHT;
-  }
-
-  if (p.ticketType) {
-    drawRow('票种', 'Ticket Type', ticketTypeCn[p.ticketType], ticketTypeEn[p.ticketType], iy, ticketTypeColor[p.ticketType]);
-    iy += ROW_HEIGHT;
-  }
-
-  drawRow('操作员', 'Operator', operatorCn, operatorEn, iy);
-  iy += ROW_HEIGHT;
-
-  drawRow('下单时间', 'Order Time', p.orderTime, p.orderTime, iy);
-  iy += ROW_HEIGHT;
-
-  if (hasPrice) {
-    drawPriceFeeRow(iy);
-    iy += ROW_HEIGHT;
-  }
-
-  if (hasTotal) {
-    drawTotalRow(iy);
-    iy += ROW_HEIGHT;
-  }
-
-  if (p.paidAt) {
-    drawRow('付款时间', 'Payment Time', p.paidAt, p.paidAt, iy);
-    iy += ROW_HEIGHT;
-  }
-
-  if (p.printedAt) {
-    drawRow('打印时间', 'Print Time', p.printedAt, p.printedAt, iy);
+  for (const row of rows) {
+    if (row.type === 'price') {
+      drawPriceFeeRow(iy);
+    } else if (row.type === 'total') {
+      drawTotalRow(iy);
+    } else {
+      drawRow(row.cn!, row.en!, row.cnVal!, row.enVal!, iy, row.color);
+    }
     iy += ROW_HEIGHT;
   }
 
