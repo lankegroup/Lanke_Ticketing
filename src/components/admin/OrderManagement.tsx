@@ -162,13 +162,18 @@ function RegistrationsList() {
 
       setRegs(prev => prev.map(r => r.id === reg.id ? { ...r, reprint_count: newReprintCount } as any : r));
 
-      supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id }).catch(() => {});
-
-      supabase.from('registrations').update({
-        service_fee: result.serviceFee,
-        paid_at: result.paidAt,
-        printed_at: result.printedAt,
-      }).eq('id', reg.id).catch(() => {});
+      (async () => {
+        try {
+          await supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id });
+        } catch {}
+        try {
+          await supabase.from('registrations').update({
+            service_fee: result.serviceFee,
+            paid_at: result.paidAt,
+            printed_at: result.printedAt,
+          }).eq('id', reg.id);
+        } catch {}
+      })();
 
       const canvas = printCanvasRef.current;
       if (!canvas) {
@@ -181,42 +186,30 @@ function RegistrationsList() {
       const isReprint = newReprintCount > 1;
       const s = reg.sessions as any;
 
-      try {
-        renderTicketToCanvas({
-          canvas, qrEl,
-          ticketCode:        reg.ticket_code,
-          sessionName:       s?.name ?? '—',
-          sessionDate:       s?.session_date ?? '—',
-          startTime:         s?.start_time ?? '00:00',
-          endTime:           s?.end_time ?? '00:00',
-          verificationStart: s?.verification_start,
-          verificationEnd:   s?.verification_end,
-          name:              reg.name,
-          seatName:          (reg as any).seats?.seat_name,
-          ticketType:        reg.ticket_type,
-          operatorName:      '001',
-          orderTime:         formatOrderTime(new Date(reg.created_at)),
-          isSupplementary:   reg.is_supplementary,
-          isReprint,
-          orderStatus:       getDisplayStatus(reg),
-          ticketPrice:       s?.ticket_price,
-          serviceFee:        result.serviceFee,
-          paidAt:            result.paidAt,
-          printedAt:         result.printedAt,
-        });
-      } catch (renderErr) {
-        console.error('renderTicketToCanvas error:', renderErr);
-        showToast('打印失败：票面生成错误', 'error');
-        return;
-      }
+      renderTicketToCanvas({
+        canvas, qrEl,
+        ticketCode:        reg.ticket_code,
+        sessionName:       s?.name ?? '—',
+        sessionDate:       s?.session_date ?? '—',
+        startTime:         s?.start_time ?? '00:00',
+        endTime:           s?.end_time ?? '00:00',
+        verificationStart: s?.verification_start,
+        verificationEnd:   s?.verification_end,
+        name:              reg.name,
+        seatName:          (reg as any).seats?.seat_name,
+        ticketType:        reg.ticket_type,
+        operatorName:      '001',
+        orderTime:         formatOrderTime(new Date(reg.created_at)),
+        isSupplementary:   reg.is_supplementary,
+        isReprint,
+        orderStatus:       getDisplayStatus(reg),
+        ticketPrice:       s?.ticket_price,
+        serviceFee:        result.serviceFee,
+        paidAt:            result.paidAt,
+        printedAt:         result.printedAt,
+      });
 
-      try {
-        downloadTicket(canvas, reg.ticket_code);
-      } catch (downloadErr) {
-        console.error('downloadTicket error:', downloadErr);
-        showToast('打印失败：下载失败', 'error');
-        return;
-      }
+      downloadTicket(canvas, reg.ticket_code);
     } catch (err) {
       console.error('Print error:', err);
       showToast('打印失败，请重试', 'error');
