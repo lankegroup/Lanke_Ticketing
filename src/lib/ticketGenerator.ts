@@ -349,13 +349,13 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 186 * D);
 
   // Copyright line — Chinese
-  ctx.fillStyle = '#9b8b7b';
-  ctx.font = `${18 * D}px sans-serif`;
+  ctx.fillStyle = '#4a4a4a';
+  ctx.font = `bold ${22 * D}px sans-serif`;
   ctx.fillText('© 兰克集团数智一体化票务运营平台', W / 2, fBase + 218 * D);
   // Copyright line — English
-  ctx.fillStyle = '#a8a29e';
-  ctx.font = `${18 * D}px sans-serif`;
-  ctx.fillText('Lanke Group Digital Integrated Ticketing Platform', W / 2, fBase + 244 * D);
+  ctx.fillStyle = '#4a4a4a';
+  ctx.font = `${22 * D}px sans-serif`;
+  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 244 * D);
 
   ctx.textAlign = 'left';
 }
