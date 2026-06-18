@@ -590,7 +590,7 @@ function UserOrdersPage({
                         <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-600 rounded-full">已换座×{order.reschedule_count}</span>
                       )}
                       {order.print_count > 1 && (
-                        <span className="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">已补打×{order.print_count - 1}</span>
+                        <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-semibold">补打×{order.print_count - 1}</span>
                       )}
                     </div>
                     <p className="text-xs text-gray-400 mb-3">{new Date(order.created_at).toLocaleString()}</p>

@@ -292,7 +292,7 @@ function RegistrationsList() {
               <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-semibold">补票</span>
             )}
             {r.print_count > 1 && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded-full">补打×{r.print_count - 1}</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full font-semibold">补打×{r.print_count - 1}</span>
             )}
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[getDisplayStatus(r)]}`}>
               {statusLabels[getDisplayStatus(r)]}
