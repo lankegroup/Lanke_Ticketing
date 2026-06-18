@@ -192,15 +192,18 @@ export function renderTicketToCanvas(p: TicketParams): void {
   let badgeY = 22 * D;
 
   function drawBadge(label: string, color: string) {
-    const BW = 160 * D;
-    const BH = 56 * D;
+    ctx.font = `bold ${28 * D}px sans-serif`;
+    const textWidth = ctx.measureText(label).width;
+    const paddingX = 20 * D;
+    const paddingY = 10 * D;
+    const BW = textWidth + paddingX * 2;
+    const BH = 28 * D + paddingY * 2;
     const BX = W - PAD - BW - 8 * D;
     ctx.fillStyle = color;
     ctx.beginPath();
     ctx.roundRect(BX, badgeY, BW, BH, 12 * D);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${28 * D}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(label, BX + BW / 2, badgeY + BH / 2);
@@ -346,19 +349,19 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.font = `${22 * D}px sans-serif`;
   ctx.fillText('Visit Lanke Group Official Website for details', W / 2, fBase + 144 * D);
 
-  // URL — with proper spacing (8-10px margin top/bottom)
+  // URL — with proper spacing (10px margin top/bottom)
   ctx.fillStyle = '#0284c7';
   ctx.font = `${24 * D}px sans-serif`;
-  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 195 * D);
+  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 205 * D);
 
   // Copyright line — Chinese
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 235 * D);
+  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 245 * D);
   // Copyright line — English
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 261 * D);
+  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 271 * D);
 
   ctx.textAlign = 'left';
 }

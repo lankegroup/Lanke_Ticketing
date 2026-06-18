@@ -9,6 +9,7 @@ import { renderTicketToCanvas, downloadTicket, formatOrderTime } from '../../lib
 import ConfirmDialog from '../ConfirmDialog';
 import Toast from '../Toast';
 import PrintConfirmModal, { PrintConfirmResult } from './PrintConfirmModal';
+import ReprintConfirmModal from './ReprintConfirmModal';
 import SessionDetailView from './SessionDetailView';
 import SeatMap from '../SeatMap';
 import AdminSeatPreview from './AdminSeatPreview';
@@ -73,6 +74,8 @@ function RegistrationsList() {
   const [printingReg, setPrintingReg] = useState<Registration | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [pendingPrintReg, setPendingPrintReg] = useState<Registration | null>(null);
+  const [showReprintConfirm, setShowReprintConfirm] = useState(false);
+  const [reprintCountForConfirm, setReprintCountForConfirm] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const printCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -125,12 +128,23 @@ function RegistrationsList() {
     const reprintCount = (reg as any).reprint_count ?? 0;
     const nextCount = reprintCount + 1;
     if (nextCount >= 2) {
-      if (!window.confirm(`当前是第 ${nextCount} 次补打，是否继续？`)) {
-        return;
-      }
+      setPendingPrintReg(reg);
+      setReprintCountForConfirm(nextCount);
+      setShowReprintConfirm(true);
+    } else {
+      setPendingPrintReg(reg);
+      setShowPrintModal(true);
     }
-    setPendingPrintReg(reg);
+  }
+
+  function handleReprintConfirm() {
+    setShowReprintConfirm(false);
     setShowPrintModal(true);
+  }
+
+  function handleReprintCancel() {
+    setShowReprintConfirm(false);
+    setPendingPrintReg(null);
   }
 
   async function handlePrintConfirm(result: PrintConfirmResult) {
@@ -875,6 +889,13 @@ function RegistrationsList() {
           </div>
         </div>
       )}
+
+      <ReprintConfirmModal
+        show={showReprintConfirm}
+        reprintCount={reprintCountForConfirm}
+        onConfirm={handleReprintConfirm}
+        onCancel={handleReprintCancel}
+      />
 
       {showPrintModal && (
         <PrintConfirmModal

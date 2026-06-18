@@ -8,6 +8,7 @@ import { renderTicketToCanvas, downloadTicket } from '../../lib/ticketGenerator'
 import ConfirmDialog from '../ConfirmDialog';
 import Toast from '../Toast';
 import ProxyBookingModal from './ProxyBookingModal';
+import ReprintConfirmModal from './ReprintConfirmModal';
 import SeatMap from '../SeatMap';
 
 type UserRow = UserProfile & { username: string };
@@ -361,6 +362,9 @@ function UserOrdersPage({
   const [verifyConfirm, setVerifyConfirm] = useState<Registration | null>(null);
   const [expiredVerify, setExpiredVerify] = useState<Registration | null>(null);
   const [printingOrder, setPrintingOrder] = useState<Registration | null>(null);
+  const [showReprintConfirm, setShowReprintConfirm] = useState(false);
+  const [pendingPrintOrder, setPendingPrintOrder] = useState<Registration | null>(null);
+  const [reprintCountForConfirm, setReprintCountForConfirm] = useState(0);
   const printCanvasRef = useRef<HTMLCanvasElement>(null);
   const printQrRef = useRef<HTMLDivElement>(null);
 
@@ -378,14 +382,19 @@ function UserOrdersPage({
     setLoading(false);
   }
 
-  async function handlePrint(order: Registration) {
+  function handlePrint(order: Registration) {
     const reprintCount = (order as any).reprint_count ?? 0;
     const nextCount = reprintCount + 1;
     if (nextCount >= 2) {
-      if (!window.confirm(`当前是第 ${nextCount} 次补打，是否继续？`)) {
-        return;
-      }
+      setPendingPrintOrder(order);
+      setReprintCountForConfirm(nextCount);
+      setShowReprintConfirm(true);
+    } else {
+      executePrint(order);
     }
+  }
+
+  async function executePrint(order: Registration) {
     setPrintingOrder(order);
     await new Promise(resolve => setTimeout(resolve, 150));
     
@@ -396,6 +405,7 @@ function UserOrdersPage({
       }
       const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
       
+      const reprintCount = (order as any).reprint_count ?? 0;
       const newReprintCount = reprintCount + 1;
       setOrders(prev => prev.map(o => o.id === order.id ? { ...o, reprint_count: newReprintCount } as any : o));
       
@@ -427,6 +437,18 @@ function UserOrdersPage({
     } finally {
       setPrintingOrder(null);
     }
+  }
+
+  function handleReprintConfirm() {
+    setShowReprintConfirm(false);
+    if (pendingPrintOrder) {
+      executePrint(pendingPrintOrder);
+    }
+  }
+
+  function handleReprintCancel() {
+    setShowReprintConfirm(false);
+    setPendingPrintOrder(null);
   }
 
   async function handleCancel() {
@@ -550,6 +572,12 @@ function UserOrdersPage({
           </div>
         </div>
       )}
+      <ReprintConfirmModal
+        show={showReprintConfirm}
+        reprintCount={reprintCountForConfirm}
+        onConfirm={handleReprintConfirm}
+        onCancel={handleReprintCancel}
+      />
       <div className="bg-gradient-to-r from-sky-600 to-cyan-500 text-white px-6 py-4 flex items-center gap-4 sticky top-0 z-10 shadow">
         <button onClick={onClose} className="p-2 hover:bg-white/20 rounded-lg transition-colors">
           <X size={20} />
