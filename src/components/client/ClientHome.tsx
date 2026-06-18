@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, Announcement, Session, SeatMapRow, formatSeatName, TicketType } from '../../lib/supabase';
 import { validateRemark, getRemarkLimit, getEnglishCharLimit, truncateRemark } from '../../lib/remarkValidator';
 import { useAuth } from '../../contexts/AuthContext';
-import { ChevronRight, Calendar, Clock, Users, ArrowLeft, X, LayoutGrid, Plus, Minus, Ticket } from 'lucide-react';
+import { ChevronRight, Calendar, Clock, Users, ArrowLeft, X, LayoutGrid, Plus, Minus, Ticket, Coins } from 'lucide-react';
 import Toast from '../Toast';
 import LoginModal from './LoginModal';
 import SeatMap from '../SeatMap';
@@ -526,6 +526,32 @@ function BookingFormView({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [balance, setBalance] = useState<number>(0);
+  const [balanceLoading, setBalanceLoading] = useState(true);
+
+  useEffect(() => {
+    if (!userId) {
+      setBalance(0);
+      setBalanceLoading(false);
+      return;
+    }
+    fetchBalance();
+  }, [userId]);
+
+  async function fetchBalance() {
+    setBalanceLoading(true);
+    try {
+      const { data } = await supabase.rpc('get_user_balance', { p_user_id: userId });
+      if (data) {
+        setBalance(Number((data as any).balance));
+      }
+    } catch {
+      setBalance(0);
+    }
+    setBalanceLoading(false);
+  }
+
+  const totalPrice = totalOrders * (session.ticket_price + (session.default_service_fee || 0));
 
   const hasSeats = session.has_seating_chart;
   const orders = hasSeats ? selectedSeats : nonSeatEntries;
@@ -625,6 +651,11 @@ function BookingFormView({
       if (bookResult.error || !rpcResult?.success) {
         if (rpcResult?.error === 'sold_out') {
           onSoldOut();
+          setSubmitting(false);
+          return;
+        } else if (rpcResult?.error === 'insufficient_balance') {
+          const required = rpcResult.required || totalPrice;
+          showToast(isEn ? `Insufficient L-Coin balance. Required: ${required} L-Coin` : `兰克币余额不足，需 ${required} L-Coin`, 'error');
           setSubmitting(false);
           return;
         } else if (rpcResult?.error === 'seat_taken' || rpcResult?.error === 'lock_expired') {
@@ -825,6 +856,26 @@ function BookingFormView({
           </div>
           {error && <p className="text-red-500 text-xs">{error}</p>}
         </div>
+
+        {userId && (
+          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Coins size={18} className="text-amber-500" />
+              <div>
+                <p className="text-xs text-amber-700">{isEn ? 'Available Balance' : '可用余额'}</p>
+                <p className="font-bold text-amber-600">
+                  {balanceLoading ? '...' : `${balance.toFixed(2)}`} L-Coin
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-gray-500">{isEn ? 'Total' : '合计'}</p>
+              <p className={`font-bold ${balance >= totalPrice ? 'text-emerald-600' : 'text-red-500'}`}>
+                {totalPrice.toFixed(2)} L-Coin
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
           <p className="text-xs text-amber-700 leading-relaxed">{t('ticket_only_valid')}</p>

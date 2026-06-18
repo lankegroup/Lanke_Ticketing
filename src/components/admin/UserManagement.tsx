@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, UserProfile, Registration, SeatMapRow, Session } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Plus, Trash2, User, Users, Pencil, TicketCheck, PackageOpen, X, Ticket, RefreshCw, Printer, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, User, Users, Pencil, TicketCheck, PackageOpen, X, Ticket, RefreshCw, Printer, AlertTriangle, Coins } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { renderTicketToCanvas, downloadTicket } from '../../lib/ticketGenerator';
 import ConfirmDialog from '../ConfirmDialog';
@@ -64,6 +64,12 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
 
   // Proxy booking
   const [proxyUser, setProxyUser] = useState<UserRow | null>(null);
+
+  // Recharge state
+  const [rechargeUser, setRechargeUser] = useState<UserRow | null>(null);
+  const [rechargeAmount, setRechargeAmount] = useState('');
+  const [rechargeReason, setRechargeReason] = useState('');
+  const [recharging, setRecharging] = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -152,6 +158,33 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
     setUpdating(false);
   }
 
+  async function handleRecharge() {
+    if (!rechargeUser || !rechargeAmount.trim()) return;
+    const amount = parseFloat(rechargeAmount);
+    if (amount <= 0) return;
+
+    setRecharging(true);
+    try {
+      const { data, error } = await supabase.rpc('admin_recharge_lcoin', {
+        p_user_id: rechargeUser.id,
+        p_amount: amount,
+        p_description: rechargeReason.trim() || null,
+      });
+
+      if (error || !data) {
+        showToast(error?.message || '充值失败', 'error');
+      } else {
+        showToast(`成功充值 ${amount} L-Coin`, 'success');
+        setRechargeUser(null);
+        setRechargeAmount('');
+        setRechargeReason('');
+      }
+    } catch (e: any) {
+      showToast(e.message || '充值失败', 'error');
+    }
+    setRecharging(false);
+  }
+
   return (
     <div className="space-y-3">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -217,6 +250,62 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
                 className="flex-1 py-2.5 bg-sky-500 hover:bg-sky-400 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
               >
                 {updating ? '...' : t('save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recharge Modal */}
+      {rechargeUser && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setRechargeUser(null)}>
+          <div
+            className="bg-white rounded-t-3xl w-full max-w-md p-5 space-y-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
+              <Coins size={18} className="text-amber-500" /> 充值兰克币
+            </h3>
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+              <p className="text-xs text-amber-700">用户：{rechargeUser.display_name || rechargeUser.id.slice(0, 8)}</p>
+              <p className="text-xs text-amber-600 mt-1">手机号：{rechargeUser.phone || '未填写'}</p>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">充值金额（L-Coin）</label>
+                <input
+                  value={rechargeAmount}
+                  onChange={e => setRechargeAmount(e.target.value)}
+                  placeholder="请输入充值金额"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">备注（可选）</label>
+                <input
+                  value={rechargeReason}
+                  onChange={e => setRechargeReason(e.target.value)}
+                  placeholder="例如：会员充值、活动奖励"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-1 pb-2">
+              <button
+                onClick={() => setRechargeUser(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={handleRecharge}
+                disabled={recharging || !rechargeAmount.trim() || parseFloat(rechargeAmount) <= 0}
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
+              >
+                {recharging ? '充值中...' : `确认充值 ${rechargeAmount} L-Coin`}
               </button>
             </div>
           </div>
@@ -307,6 +396,12 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
                     className="flex items-center gap-1 text-xs text-emerald-600 border border-emerald-200 px-2.5 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors"
                   >
                     <TicketCheck size={12} /> 代客预约
+                  </button>
+                  <button
+                    onClick={() => { setRechargeUser(u); setRechargeAmount(''); setRechargeReason(''); }}
+                    className="flex items-center gap-1 text-xs text-amber-600 border border-amber-200 px-2.5 py-1.5 rounded-lg hover:bg-amber-50 transition-colors"
+                  >
+                    <Coins size={12} /> 充值
                   </button>
                   <button
                     onClick={() => openEdit(u)}
