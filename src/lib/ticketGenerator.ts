@@ -92,14 +92,14 @@ export function renderTicketToCanvas(p: TicketParams): void {
   const EN_VALUE_SIZE = 26 * D;
   const EN_OFFSET     = 38 * D;
 
-  const ROW_GAP_BI   = 88 * D;
-  const ROW_GAP_MONO = 74 * D;
+  const ROW_GAP_BI   = 72 * D;
+  const ROW_GAP_MONO = 60 * D;
 
-  const BI_CN_Y_OFF   = 28 * D;
-  const MONO_CN_Y_OFF = 20 * D;
-  const MONO_EN_Y_OFF = 56 * D;
-  const MONO_VAL_Y_OFF = 42 * D;
-  const MONO_VALUE_SIZE = 31 * D;
+  const BI_CN_Y_OFF   = 22 * D;
+  const MONO_CN_Y_OFF = 14 * D;
+  const MONO_EN_Y_OFF = 42 * D;
+  const MONO_VAL_Y_OFF = 32 * D;
+  const MONO_VALUE_SIZE = 26 * D;
 
   const LABEL_COLOR    = '#5c4a3a';
   const LABEL_COLOR_EN = '#9b8b7b';
@@ -139,7 +139,18 @@ export function renderTicketToCanvas(p: TicketParams): void {
     subLabelEn = 'Event Admission Proof';
   }
 
-  // ── Row definitions ──────────────────────────────────────────────────
+  const totalAmount = (p.ticketPrice ?? 0) + (p.serviceFee ?? 0);
+  const priceLineCn = p.ticketPrice !== undefined && p.serviceFee !== undefined
+    ? `票价 ¥${(p.ticketPrice).toFixed(2)} + 手续费 ¥${(p.serviceFee).toFixed(2)} = ¥${totalAmount.toFixed(2)}`
+    : p.ticketPrice !== undefined
+    ? `票价 ¥${(p.ticketPrice).toFixed(2)}`
+    : '';
+  const priceLineEn = p.ticketPrice !== undefined && p.serviceFee !== undefined
+    ? `Ticket ¥${(p.ticketPrice).toFixed(2)} + Fee ¥${(p.serviceFee).toFixed(2)} = ¥${totalAmount.toFixed(2)}`
+    : p.ticketPrice !== undefined
+    ? `Ticket ¥${(p.ticketPrice).toFixed(2)}`
+    : '';
+
   const rowDefs: RowDef[] = [
     { cnLabel: '活动时间', enLabel: 'Event Time',   cnValue: activityTimeCn, enValue: activityTimeEn },
     ...(verifRange
@@ -154,11 +165,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
       : []),
     { cnLabel: '操作员',   enLabel: 'Operator',    cnValue: operatorCn,     enValue: operatorEn },
     { cnLabel: '下单时间', enLabel: 'Order Time',  cnValue: p.orderTime,    enValue: p.orderTime },
-    { cnLabel: '票  价', enLabel: 'Ticket Price', cnValue: `¥${(p.ticketPrice ?? 0).toFixed(2)}`, enValue: `¥${(p.ticketPrice ?? 0).toFixed(2)}` },
-    { cnLabel: '手续费', enLabel: 'Service Fee', cnValue: `¥${(p.serviceFee ?? 0).toFixed(2)}`, enValue: `¥${(p.serviceFee ?? 0).toFixed(2)}` },
-    ...(p.ticketPrice !== undefined || p.serviceFee !== undefined
-      ? [{ cnLabel: '合  计', enLabel: 'Total', cnValue: `¥${((p.ticketPrice ?? 0) + (p.serviceFee ?? 0)).toFixed(2)}`, enValue: `¥${((p.ticketPrice ?? 0) + (p.serviceFee ?? 0)).toFixed(2)}` }]
-      : []),
+    ...(priceLineCn ? [{ cnLabel: '金  额', enLabel: 'Amount', cnValue: priceLineCn, enValue: priceLineEn }] : []),
     ...(p.paidAt
       ? [{ cnLabel: '付款时间', enLabel: 'Payment Time', cnValue: p.paidAt, enValue: p.paidAt }]
       : []),
@@ -172,18 +179,15 @@ export function renderTicketToCanvas(p: TicketParams): void {
   }
 
   // ── Header layout ────────────────────────────────────────────────────
-  const HEADER_CN_Y   = 78 * D;
-  const HEADER_EN_Y   = HEADER_CN_Y + 30 * D;
-  const SUBLABEL_CN_Y = showSessionNameEn ? HEADER_EN_Y + 32 * D : HEADER_CN_Y + 32 * D;
-  const SUBLABEL_EN_Y = SUBLABEL_CN_Y + 30 * D;
-  const DIVIDER_Y     = SUBLABEL_EN_Y + 24 * D;
-  const DATA_Y0       = DIVIDER_Y + 26 * D;
+  const HEADER_Y      = 70 * D;
+  const DIVIDER_Y     = HEADER_Y + 40 * D;
+  const DATA_Y0       = DIVIDER_Y + 20 * D;
 
   // ── Canvas height ────────────────────────────────────────────────────
   const totalDataH = rowDefs.reduce((sum, r) => sum + rowHeight(r), 0);
-  const perfY      = DATA_Y0 + totalDataH + 12 * D;
-  const qrTopY     = perfY + 24 * D;
-  const FOOTER_H   = 270 * D;
+  const perfY      = DATA_Y0 + totalDataH + 10 * D;
+  const qrTopY     = perfY + 20 * D;
+  const FOOTER_H   = 260 * D;
   const H          = qrTopY + QR_SIZE + FOOTER_H;
 
   p.canvas.width  = W;
@@ -231,24 +235,32 @@ export function renderTicketToCanvas(p: TicketParams): void {
   if (p.isSupplementary) drawBadge('补票', '#f97316');
 
   // ── Header ───────────────────────────────────────────────────────────
-  const cnNameSize = adaptedCnSize(ctx, p.sessionName, 40 * D, sessionNameEn, 22 * D);
-  ctx.fillStyle = '#0f172a';
-  ctx.font = `bold ${cnNameSize}px sans-serif`;
-  ctx.fillText(p.sessionName, PAD, HEADER_CN_Y);
-
-  if (showSessionNameEn) {
-    ctx.fillStyle = '#5b7b9b';
-    ctx.font = `${22 * D}px sans-serif`;
-    ctx.fillText(sessionNameEn, PAD, HEADER_EN_Y);
+  ctx.font = `bold ${36 * D}px sans-serif`;
+  const sessionNameWidth = ctx.measureText(p.sessionName).width;
+  
+  const subLabelWidth = ctx.measureText(subLabelCn).width;
+  const availableWidth = W - PAD * 2 - sessionNameWidth - subLabelWidth - 20 * D;
+  
+  if (availableWidth < 0) {
+    const maxSessionWidth = W - PAD * 2 - subLabelWidth - 40 * D;
+    ctx.font = `bold ${36 * D}px sans-serif`;
+    let displayName = p.sessionName;
+    while (ctx.measureText(displayName + '...').width > maxSessionWidth && displayName.length > 4) {
+      displayName = displayName.slice(0, -1);
+    }
+    if (displayName !== p.sessionName) displayName += '...';
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(displayName, PAD, HEADER_Y);
+  } else {
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText(p.sessionName, PAD, HEADER_Y);
   }
 
   ctx.fillStyle = '#0ea5e9';
   ctx.font = `${20 * D}px sans-serif`;
-  ctx.fillText(subLabelCn, PAD, SUBLABEL_CN_Y);
-
-  ctx.fillStyle = '#38b2d8';
-  ctx.font = `${20 * D}px sans-serif`;
-  ctx.fillText(subLabelEn, PAD, SUBLABEL_EN_Y);
+  ctx.textAlign = 'right';
+  ctx.fillText(subLabelCn, W - PAD, HEADER_Y);
+  ctx.textAlign = 'left';
 
   ctx.setLineDash([12 * D, 4 * D]);
   ctx.strokeStyle = '#1f2937';
@@ -339,42 +351,29 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.textAlign = 'center';
   const fBase = qrY + QR_SIZE;
 
-  // Ticket code — enlarged
   ctx.fillStyle = '#0369a1';
-  ctx.font = `bold ${30 * D}px monospace`;
-  ctx.fillText(p.ticketCode, W / 2, fBase + 38 * D);
+  ctx.font = `bold ${28 * D}px monospace`;
+  ctx.fillText(p.ticketCode, W / 2, fBase + 28 * D);
 
-  // CN instruction
   ctx.fillStyle = '#78716c';
-  ctx.font = `${20 * D}px sans-serif`;
-  ctx.fillText('入场时出示二维码供工作人员核销', W / 2, fBase + 68 * D);
+  ctx.font = `${18 * D}px sans-serif`;
+  ctx.fillText('入场时出示二维码供工作人员核销', W / 2, fBase + 52 * D);
 
-  // EN instruction
   ctx.fillStyle = '#a8a29e';
-  ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Present QR code at entrance for staff verification', W / 2, fBase + 92 * D);
-
-  // CN website label
-  ctx.fillStyle = '#78716c';
-  ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('详情登录兰克集团票务官网', W / 2, fBase + 122 * D);
-
-  // EN website label
-  ctx.fillStyle = '#a8a29e';
-  ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Visit Lanke Group Official Website for details', W / 2, fBase + 144 * D);
+  ctx.font = `${18 * D}px sans-serif`;
+  ctx.fillText('Present QR code at entrance for staff verification', W / 2, fBase + 72 * D);
 
   ctx.fillStyle = '#0284c7';
-  ctx.font = `${24 * D}px sans-serif`;
-  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 185 * D);
+  ctx.font = `${20 * D}px sans-serif`;
+  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 98 * D);
 
-  ctx.fillStyle = '#4a4a4a';
-  ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 225 * D);
+  ctx.fillStyle = '#a8a29e';
+  ctx.font = `${12 * D}px sans-serif`;
+  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 120 * D);
 
-  ctx.fillStyle = '#4a4a4a';
-  ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 251 * D);
+  ctx.fillStyle = '#a8a29e';
+  ctx.font = `${12 * D}px sans-serif`;
+  ctx.fillText('Copyright © Lanke Group Digital Integrated Ticketing Platform. All Rights Reserved.', W / 2, fBase + 144 * D);
 
   ctx.textAlign = 'left';
 }

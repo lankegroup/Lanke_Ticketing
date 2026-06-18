@@ -11,20 +11,32 @@ import BookingNoticeModal from '../BookingNoticeModal';
 
 // ─── TicketTypeSegmented ──────────────────────────────────────────────────────
 
-function TicketTypeSegmented({ value, onChange, isEn }: { value: TicketType; onChange: (t: TicketType) => void; isEn: boolean }) {
-  const opts: { v: TicketType; label: string; activeCls: string }[] = [
-    { v: 'adult',      label: isEn ? 'Adult'       : '成人票', activeCls: 'bg-sky-500 text-white shadow-sm' },
-    { v: 'child',      label: isEn ? 'Child'       : '儿童票', activeCls: 'bg-teal-500 text-white shadow-sm' },
-    { v: 'concession', label: isEn ? 'Concession'  : '优待票', activeCls: 'bg-amber-500 text-white shadow-sm' },
+function TicketTypeSegmented({ value, onChange, isEn, isVip, vipOnly }: { value: TicketType; onChange: (t: TicketType) => void; isEn: boolean; isVip?: boolean; vipOnly?: boolean }) {
+  const opts: { v: TicketType; label: string; activeCls: string; isVipOnly: boolean }[] = [
+    { v: 'adult',      label: isEn ? 'Adult'       : '成人票', activeCls: 'bg-sky-500 text-white shadow-sm',        isVipOnly: false },
+    { v: 'child',      label: isEn ? 'Child'       : '儿童票', activeCls: 'bg-teal-500 text-white shadow-sm',       isVipOnly: false },
+    { v: 'concession', label: isEn ? 'Concession'  : '优待票', activeCls: 'bg-amber-500 text-white shadow-sm',      isVipOnly: false },
+    { v: 'vip',        label: isEn ? 'VIP'         : 'VIP票',  activeCls: 'bg-yellow-500 text-white shadow-sm',     isVipOnly: true  },
   ];
+
+  const filteredOpts = vipOnly 
+    ? opts.filter(o => !o.isVipOnly || isVip)
+    : opts;
+
   return (
     <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded-xl flex-1 ml-3">
-      {opts.map(o => (
+      {filteredOpts.map(o => (
         <button key={o.v} type="button" onClick={() => onChange(o.v)}
+          disabled={o.isVipOnly && !isVip}
           className={`flex-1 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
-            value === o.v ? o.activeCls : 'text-gray-500 hover:text-gray-700'
+            value === o.v 
+              ? o.activeCls 
+              : o.isVipOnly && !isVip
+                ? 'text-gray-300 cursor-not-allowed'
+                : 'text-gray-500 hover:text-gray-700'
           }`}>
           {o.label}
+          {o.isVipOnly && !isVip && <span className="ml-0.5">*</span>}
         </button>
       ))}
     </div>
@@ -47,7 +59,7 @@ interface NonSeatEntry {
 
 export default function ClientHome() {
   const { t, i18n } = useTranslation();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, isVip, lcoinBalance } = useAuth();
   const isEn = i18n.language === 'en';
 
   const [step, setStep] = useState<Step>('home');
@@ -541,17 +553,29 @@ function BookingFormView({
   async function fetchBalance() {
     setBalanceLoading(true);
     try {
-      const { data } = await supabase.rpc('get_user_balance', { p_user_id: userId });
-      if (data) {
-        setBalance(Number((data as any).balance));
+      const { data, error } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: userId });
+      console.log('fetchBalance result:', { data, error, dataType: typeof data, dataString: JSON.stringify(data) });
+      if (error) {
+        console.error('Balance fetch error:', error);
+        setBalance(0);
+        return;
       }
-    } catch {
+      let bal: number = 0;
+      if (data !== null && data !== undefined) {
+        if (typeof data === 'object') {
+          const val = (data as any).balance ?? (data as any).l_coin_balance ?? (data as any).lcoin ?? null;
+          bal = val !== null && !isNaN(Number(val)) ? Number(val) : 0;
+        } else if (typeof data === 'number' || typeof data === 'string') {
+          bal = !isNaN(Number(data)) ? Number(data) : 0;
+        }
+      }
+      setBalance(bal);
+    } catch (err) {
+      console.error('Balance fetch failed:', err);
       setBalance(0);
     }
     setBalanceLoading(false);
   }
-
-  const totalPrice = totalOrders * (session.ticket_price + (session.default_service_fee || 0));
 
   const hasSeats = session.has_seating_chart;
   const orders = hasSeats ? selectedSeats : nonSeatEntries;
@@ -561,7 +585,23 @@ function BookingFormView({
     adult: isEn ? 'Adult' : '成人票',
     child: isEn ? 'Child' : '儿童票',
     concession: isEn ? 'Concession' : '优待票',
+    vip: isEn ? 'VIP' : 'VIP票',
   };
+
+  const getTicketPrice = (ticketType: TicketType) => {
+    switch (ticketType) {
+      case 'child': return session.child_price ?? session.ticket_price * 0.5;
+      case 'concession': return session.concession_price ?? session.ticket_price * 0.8;
+      case 'vip': return session.vip_price ?? session.ticket_price * 1.5;
+      default: return session.ticket_price;
+    }
+  };
+
+  const totalPrice = orders.reduce((sum, order) => {
+    const price = getTicketPrice(order.ticketType);
+    const fee = session.default_service_fee || 0;
+    return sum + (price + fee);
+  }, 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -753,7 +793,7 @@ function BookingFormView({
                         </p>
                       </div>
                     </div>
-                    <span className="text-sm font-medium text-red-500">-{session.ticket_price} L-Coin</span>
+                    <span className="text-sm font-medium text-red-500">-{ticketPrice} {isEn ? 'Lanke Coins' : '兰克币'}</span>
                   </div>
                 ))}
                 {!hasSeats && nonSeatEntries.map((entry, idx) => (
@@ -767,7 +807,7 @@ function BookingFormView({
                         }
                       </p>
                     </div>
-                    <span className="text-sm font-medium text-red-500">-{session.ticket_price} L-Coin</span>
+                    <span className="text-sm font-medium text-red-500">-{ticketPrice} {isEn ? 'Lanke Coins' : '兰克币'}</span>
                   </div>
                 ))}
               </div>
@@ -777,7 +817,7 @@ function BookingFormView({
                 <div className="pt-2 border-t border-gray-100">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-gray-600">{isEn ? 'Service Fee' : '服务费'}</p>
-                    <span className="text-sm font-medium text-gray-600">-{session.default_service_fee} L-Coin</span>
+                    <span className="text-sm font-medium text-gray-600">-{serviceFee} {isEn ? 'Lanke Coins' : '兰克币'}</span>
                   </div>
                 </div>
               )}
@@ -788,7 +828,7 @@ function BookingFormView({
                   <span className="font-semibold text-gray-900">{isEn ? 'Total' : '合计支付'}</span>
                   <span className="text-xl font-bold text-amber-500 flex items-center gap-1">
                     <Coins size={18} />
-                    {totalPrice.toFixed(2)} L-Coin
+                    {totalPrice.toFixed(2)} {isEn ? 'Lanke Coins' : '兰克币'}
                   </span>
                 </div>
               </div>
@@ -797,23 +837,23 @@ function BookingFormView({
 
           {/* 用户余额信息 */}
           {userId && (
-            <div className={`rounded-2xl border-2 p-4 ${balance >= totalPrice ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
+            <div className={`rounded-2xl border-2 p-4 ${!isNaN(balance) && balance >= totalPrice ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${balance >= totalPrice ? 'bg-emerald-100' : 'bg-red-100'}`}>
-                    <Coins size={20} className={balance >= totalPrice ? 'text-emerald-500' : 'text-red-500'} />
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${!isNaN(balance) && balance >= totalPrice ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                    <Coins size={20} className={!isNaN(balance) && balance >= totalPrice ? 'text-emerald-500' : 'text-red-500'} />
                   </div>
                   <div>
-                    <p className="text-xs text-gray-500">{isEn ? 'Available L-Coin Balance' : '可用兰克币余额'}</p>
-                    <p className={`font-bold text-lg ${balance >= totalPrice ? 'text-emerald-600' : 'text-red-500'}`}>
-                      {balanceLoading ? '...' : balance.toFixed(2)} L-Coin
+                    <p className="text-xs text-gray-500">{isEn ? 'Available Lanke Coins' : '可用兰克币余额'}</p>
+                    <p className={`font-bold text-lg ${!isNaN(balance) && balance >= totalPrice ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {balanceLoading ? '...' : (isNaN(balance) ? '0' : balance.toFixed(2))} {isEn ? 'Lanke Coins' : '兰克币'}
                     </p>
                   </div>
                 </div>
-                {balance < totalPrice && (
+                {!isNaN(balance) && balance < totalPrice && (
                   <div className="text-right">
                     <p className="text-xs text-red-500 font-medium">{isEn ? 'Insufficient Balance' : '余额不足'}</p>
-                    <p className="text-xs text-red-400">{isEn ? 'Need more:' : '还需：'}{totalPrice - balance} L-Coin</p>
+                    <p className="text-xs text-red-400">{isEn ? 'Need more:' : '还需：'}{(totalPrice - balance).toFixed(2)} {isEn ? 'Lanke Coins' : '兰克币'}</p>
                   </div>
                 )}
               </div>
@@ -922,7 +962,7 @@ function BookingFormView({
               <p className="text-xs text-gray-500">{isEn ? 'Total' : '应付总额'}</p>
               <p className="text-xl font-bold text-amber-500 flex items-center gap-1">
                 <Coins size={18} />
-                {totalPrice.toFixed(2)} L-Coin
+                {totalPrice.toFixed(2)} {isEn ? 'Lanke Coins' : '兰克币'}
               </p>
             </div>
             <button

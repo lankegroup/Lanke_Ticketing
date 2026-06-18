@@ -21,7 +21,6 @@ export default function MyPage() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [subView, setSubView] = useState<SubView>('main');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'warning' } | null>(null);
-  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [balance, setBalance] = useState<string>('0');
 
   const isEn = i18n.language === 'en';
@@ -42,11 +41,27 @@ export default function MyPage() {
 
   async function fetchBalance() {
     try {
-      const { data } = await supabase.rpc('get_user_balance', { p_user_id: user?.id });
-      if (data) {
-        setBalance(String((data as any).balance));
+      console.log('fetchBalance called, user.id:', user?.id);
+      const { data, error } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: user?.id });
+      console.log('fetchBalance result:', { data, error, dataType: typeof data, dataString: JSON.stringify(data) });
+      if (error) {
+        console.error('Failed to fetch balance:', error);
+        setBalance('0');
+        return;
       }
-    } catch {
+      let bal: number | null = null;
+      if (data !== null && data !== undefined) {
+        if (typeof data === 'object') {
+          bal = (data as any).balance ?? (data as any).l_coin_balance ?? (data as any).lcoin ?? null;
+        } else if (typeof data === 'number' || typeof data === 'string') {
+          bal = Number(data);
+        }
+      }
+      const finalBalance = (bal !== null && !isNaN(bal)) ? String(bal) : '0';
+      console.log('Setting balance to:', finalBalance);
+      setBalance(finalBalance);
+    } catch (err) {
+      console.error('Failed to fetch balance:', err);
       setBalance('0');
     }
   }
@@ -106,20 +121,6 @@ export default function MyPage() {
     setLoading(false);
   }
 
-  async function handleCancelBooking(id: string) {
-    const { data, error } = await supabase.rpc('cancel_ticket', {
-      p_registration_id: id,
-      p_user_id: user?.id,
-    });
-    if (error || (data as any)?.success === false) {
-      showToast(t('operation_failed'), 'error');
-    } else {
-      showToast(t('cancel_success'), 'success');
-      fetchTickets();
-    }
-    setConfirmCancel(null);
-  }
-
   // ── Sub-views ──────────────────────────────────────────────────────────────
 
   if (selectedTicket) {
@@ -143,7 +144,6 @@ export default function MyPage() {
         loading={loading}
         isEn={isEn}
         onBack={() => setSubView('main')}
-        onCancelTicket={(id) => setConfirmCancel(id)}
         onViewTicket={(tk) => setSelectedTicket(tk)}
         onRefresh={fetchTickets}
         showToast={showToast}
@@ -179,14 +179,6 @@ export default function MyPage() {
     <div className="p-4 space-y-4">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <LoginModal open={showLoginModal} onClose={() => setShowLoginModal(false)} />
-      {confirmCancel && (
-        <ConfirmDialog
-          title={t('cancel_booking')}
-          message={t('confirm_cancel_booking')}
-          onConfirm={() => handleCancelBooking(confirmCancel)}
-          onCancel={() => setConfirmCancel(null)}
-        />
-      )}
 
       {/* User card */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
@@ -265,8 +257,8 @@ export default function MyPage() {
               <Coins size={20} className="text-white" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-white">{isEn ? 'L-Coin Balance' : '兰克币余额'}</p>
-              <p className="text-white/80 text-sm">{balance} L-Coin</p>
+              <p className="font-semibold text-white">{isEn ? 'Lanke Coins Balance' : '兰克币余额'}</p>
+              <p className="text-white/80 text-sm">{balance} {isEn ? 'Lanke Coins' : '兰克币'}</p>
             </div>
             <ChevronRight size={16} className="text-white/70" />
           </button>
@@ -320,20 +312,21 @@ export default function MyPage() {
 // ─── OrdersView ────────────────────────────────────────────────────────────────
 
 function OrdersView({
-  tickets, loading, isEn, onBack, onCancelTicket, onViewTicket, onRefresh, showToast,
+  tickets, loading, isEn, onBack, onViewTicket, onRefresh, showToast,
 }: {
   tickets: Registration[];
   loading: boolean;
   isEn: boolean;
   onBack: () => void;
-  onCancelTicket: (id: string) => void;
   onViewTicket: (t: Registration) => void;
   onRefresh: () => void;
   showToast: (msg: string, type: 'success' | 'error' | 'warning') => void;
 }) {
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [changeSeatTicket, setChangeSeatTicket] = useState<Registration | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -358,6 +351,7 @@ function OrdersView({
 
   async function handleDelete(id: string) {
     setDeleting(true);
+    console.log('handleDelete called with id:', id);
     const { data, error } = await supabase.rpc('client_delete_registration', { p_registration_id: id });
     setDeleting(false);
     setConfirmDelete(null);
@@ -365,6 +359,24 @@ function OrdersView({
       showToast(t('operation_failed'), 'error');
     } else {
       showToast(isEn ? 'Order deleted' : '订单已删除', 'success');
+      onRefresh();
+    }
+  }
+
+  async function handleCancel(id: string) {
+    setCancelling(true);
+    console.log('handleCancel called with id:', id);
+    const { data, error } = await supabase.rpc('cancel_ticket', {
+      p_registration_id: id,
+      p_user_id: null,
+    });
+    setCancelling(false);
+    setConfirmCancel(null);
+    if (error || (data as any)?.success === false) {
+      console.log('Cancel failed:', { error, data });
+      showToast(t('operation_failed'), 'error');
+    } else {
+      showToast(isEn ? 'Booking cancelled' : '订单已取消', 'success');
       onRefresh();
     }
   }
@@ -391,6 +403,16 @@ function OrdersView({
             : '确定要删除此订单吗？删除后将无法恢复。'}
           onConfirm={() => handleDelete(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+      {confirmCancel && (
+        <ConfirmDialog
+          title={isEn ? 'Cancel Booking' : '取消订单'}
+          message={isEn
+            ? 'Are you sure you want to cancel this booking? Inventory will be returned.'
+            : '确认取消该订单？库存将返还。'}
+          onConfirm={() => handleCancel(confirmCancel)}
+          onCancel={() => setConfirmCancel(null)}
         />
       )}
 
@@ -474,8 +496,9 @@ function OrdersView({
                     )}
                     {isActive && (
                       <button
-                        onClick={() => onCancelTicket(ticket.id)}
-                        className="flex-1 text-xs text-red-500 border border-red-200 py-1.5 rounded-lg hover:bg-red-50 transition-colors text-center"
+                        onClick={() => setConfirmCancel(ticket.id)}
+                        disabled={cancelling}
+                        className="flex-1 text-xs text-red-500 border border-red-200 py-1.5 rounded-lg hover:bg-red-50 transition-colors text-center disabled:opacity-50"
                       >
                         {t('cancel_booking')}
                       </button>
@@ -987,15 +1010,22 @@ function BalanceView({ balance, onBack, onRecharge }: { balance: string; onBack:
   const isEn = i18n.language === 'en';
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rechargeDescription, setRechargeDescription] = useState('');
 
   useEffect(() => {
     fetchTransactions();
+    fetchConfig();
   }, []);
 
   async function fetchTransactions() {
     setLoading(true);
     try {
-      const { data } = await supabase.rpc('get_user_transactions', { p_limit: 20 });
+      const { data } = await supabase
+        .from('lcoin_transactions')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
       setTransactions(data || []);
     } catch {
       setTransactions([]);
@@ -1003,18 +1033,33 @@ function BalanceView({ balance, onBack, onRecharge }: { balance: string; onBack:
     setLoading(false);
   }
 
+  async function fetchConfig() {
+    try {
+      const { data } = await supabase.from('lcoin_config').select('value').eq('key', 'recharge_description');
+      if (data && data.length > 0) {
+        setRechargeDescription(data[0].value || '');
+      }
+    } catch {
+      setRechargeDescription('');
+    }
+  }
+
   const formatType = (type: string) => {
     switch (type) {
       case 'recharge': return isEn ? 'Recharge' : '充值';
-      case 'payment': return isEn ? 'Payment' : '消费';
+      case 'purchase': return isEn ? 'Purchase' : '购票消费';
       case 'refund': return isEn ? 'Refund' : '退款';
+      case 'adjust_add': return isEn ? 'Adjustment (+)' : '调整增加';
+      case 'adjust_subtract': return isEn ? 'Adjustment (-)' : '调整减少';
+      case 'fee': return isEn ? 'Fee' : '手续费';
+      case 'reschedule': return isEn ? 'Reschedule' : '改签';
       default: return type;
     }
   };
 
-  const formatAmount = (type: string, amount: string) => {
-    const prefix = type === 'recharge' || type === 'refund' ? '+' : '-';
-    return `${prefix}${amount} L-Coin`;
+  const formatAmount = (direction: string, amount: string) => {
+    const prefix = direction === 'in' ? '+' : '-';
+    return `${prefix}${amount} ${isEn ? 'Lanke Coins' : '兰克币'}`;
   };
 
   return (
@@ -1023,14 +1068,14 @@ function BalanceView({ balance, onBack, onRecharge }: { balance: string; onBack:
         <button onClick={onBack} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
           <X size={18} />
         </button>
-        <span className="font-semibold">{isEn ? 'L-Coin Balance' : '兰克币余额'}</span>
+        <span className="font-semibold">{isEn ? 'Lanke Coins Balance' : '兰克币余额'}</span>
       </div>
 
       <div className="p-4">
         <div className="bg-gradient-to-br from-amber-500 to-amber-400 rounded-2xl p-6 text-white text-center">
           <p className="text-white/80 text-sm mb-1">{isEn ? 'Current Balance' : '当前余额'}</p>
           <p className="text-4xl font-bold">{balance}</p>
-          <p className="text-white/70 text-xs mt-1">L-Coin</p>
+          <p className="text-white/70 text-xs mt-1">{isEn ? 'Lanke Coins' : '兰克币'}</p>
         </div>
 
         <button
@@ -1054,19 +1099,26 @@ function BalanceView({ balance, onBack, onRecharge }: { balance: string; onBack:
               {transactions.map((tx) => (
                 <div key={tx.id} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-gray-900">{formatType(tx.type)}</p>
+                    <p className="font-medium text-gray-900">{formatType(tx.transaction_type)}</p>
                     <p className="text-xs text-gray-400">
                       {tx.created_at ? new Date(tx.created_at).toLocaleString(isEn ? 'en-US' : 'zh-CN') : ''}
                     </p>
                   </div>
-                  <p className={`font-semibold ${tx.type === 'recharge' || tx.type === 'refund' ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {formatAmount(tx.type, tx.amount)}
+                  <p className={`font-semibold ${tx.direction === 'in' ? 'text-emerald-600' : 'text-red-500'}`}>
+                    {formatAmount(tx.direction, tx.amount)}
                   </p>
                 </div>
               ))}
             </div>
-          )}
+          )}</div>
         </div>
+
+        {rechargeDescription && (
+          <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5">
+            <h3 className="font-semibold text-gray-900 mb-3">{isEn ? 'Recharge Instructions' : '充值说明'}</h3>
+            <div className="text-sm text-gray-500 leading-relaxed" dangerouslySetInnerHTML={{ __html: rechargeDescription }} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1075,7 +1127,7 @@ function BalanceView({ balance, onBack, onRecharge }: { balance: string; onBack:
 function RechargeGuideView({ onBack }: { onBack: () => void }) {
   const { t, i18n } = useTranslation();
   const isEn = i18n.language === 'en';
-  const [settings, setSettings] = useState<{ banner_image: string; description: string } | null>(null);
+  const [settings, setSettings] = useState<{ banner_image: string; description: string; enabled: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -1085,13 +1137,34 @@ function RechargeGuideView({ onBack }: { onBack: () => void }) {
   async function fetchSettings() {
     setLoading(true);
     try {
-      const { data } = await supabase.from('recharge_settings').select('banner_image, description').single();
-      setSettings(data || { banner_image: '', description: '' });
+      const { data } = await supabase.from('recharge_settings').select('banner_image, description, enabled').single();
+      setSettings(data || { banner_image: '', description: '', enabled: true });
     } catch {
-      setSettings({ banner_image: '', description: '' });
+      setSettings({ banner_image: '', description: '', enabled: true });
     }
     setLoading(false);
   }
+
+  function parseMarkdown(text: string): string {
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
+    html = html.replace(/<\/li>\n<li>/g, '</li><li>');
+    html = html.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul class="list-disc list-inside space-y-1">$1</ul>');
+    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="text-amber-600 underline">$1</a>');
+    html = html.replace(/\n/g, '<br/>');
+
+    return html;
+  }
+
+  const defaultDesc = isEn 
+    ? 'Please contact customer service to confirm your Lanke Coins recharge.' 
+    : '如需充值兰克币，请联系客服确认。';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1105,6 +1178,11 @@ function RechargeGuideView({ onBack }: { onBack: () => void }) {
       <div className="p-4">
         {loading ? (
           <div className="py-8 text-center text-gray-400 text-sm">{t('loading')}</div>
+        ) : !settings?.enabled ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+            <Coins size={40} className="text-gray-300 mx-auto mb-4" />
+            <p className="text-gray-500 text-sm">{isEn ? 'Recharge service is temporarily unavailable.' : '充值服务暂时不可用。'}</p>
+          </div>
         ) : (
           <div className="space-y-4">
             {settings?.banner_image && (
@@ -1118,11 +1196,9 @@ function RechargeGuideView({ onBack }: { onBack: () => void }) {
                 <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Coins size={16} className="text-amber-500" />
                 </div>
-                <div>
+                <div className="flex-1">
                   <h4 className="font-semibold text-gray-900 mb-1">{isEn ? 'How to Recharge' : '充值方式'}</h4>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    {settings?.description || (isEn ? 'Please contact customer service to confirm your L-Coin recharge.' : '如需充值兰克币，请联系客服确认。')}
-                  </p>
+                  <div className="text-sm text-gray-500 leading-relaxed" dangerouslySetInnerHTML={{ __html: parseMarkdown(settings?.description || defaultDesc) }} />
                 </div>
               </div>
 

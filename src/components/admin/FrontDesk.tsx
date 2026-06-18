@@ -103,7 +103,7 @@ export default function FrontDesk() {
       if (data) {
         setCustomerUser(data);
         setCustomerName(data.display_name || '');
-        const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: data.id });
+        const { data: balData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: data.id });
         setCustomerBalance(Number(balData) || 0);
         showToast('找到已注册用户', 'success');
       } else {
@@ -272,13 +272,14 @@ export default function FrontDesk() {
         return;
       }
 
-      const deductResult = await supabase.rpc('deduct_lcoin', {
-        p_user_id: customerUser.id,
-        p_amount: totalPrice,
-        p_description: `购票：${selectedSession.name}`,
+      const deductResult = await callEdgeFunction('lcoin-transaction', {
+        action: 'purchase',
+        user_id: customerUser.id,
+        amount: totalPrice,
+        description: `购票：${selectedSession.name}`,
       });
 
-      if (!deductResult.data) {
+      if (!deductResult.data?.success) {
         setError('扣款失败，请重试');
         setSubmitting(false);
         return;
@@ -776,7 +777,7 @@ export default function FrontDesk() {
       if (data) {
         setCustomerUser(data);
         setCustomerName(data.display_name || '');
-        const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: data.id });
+        const { data: balData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: data.id });
         setCustomerBalance(Number(balData) || 0);
         showToast('找到已注册用户', 'success');
       } else {
@@ -945,13 +946,14 @@ export default function FrontDesk() {
         return;
       }
 
-      const deductResult = await supabase.rpc('deduct_lcoin', {
-        p_user_id: customerUser.id,
-        p_amount: totalPrice,
-        p_description: `购票：${selectedSession.name}`,
+      const deductResult = await callEdgeFunction('lcoin-transaction', {
+        action: 'purchase',
+        user_id: customerUser.id,
+        amount: totalPrice,
+        description: `购票：${selectedSession.name}`,
       });
 
-      if (!deductResult.data) {
+      if (!deductResult.data?.success) {
         setError('扣款失败，请重试');
         setSubmitting(false);
         return;

@@ -1,18 +1,22 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { supabase, AdminProfile, UserProfile } from '../lib/supabase';
+import { supabase, AdminProfile, UserProfile, getLcoinAccount, LCoinAccount } from '../lib/supabase';
 import type { User, RealtimeChannel } from '@supabase/supabase-js';
 
 type AuthContextType = {
   user: User | null;
   profile: AdminProfile | null;
   userProfile: UserProfile | null;
+  lcoinAccount: LCoinAccount | null;
   isAdmin: boolean;
+  isVip: boolean;
+  lcoinBalance: number;
   loading: boolean;
   signIn: (username: string, password: string) => Promise<{ error: string | null }>;
   signInClient: (username: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
+  refreshLcoinAccount: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -35,9 +39,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<AdminProfile | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [lcoinAccount, setLcoinAccount] = useState<LCoinAccount | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const sessionChannelRef = useRef<RealtimeChannel | null>(null);
+
+  const isVip = lcoinAccount?.is_vip || false;
+  const lcoinBalance = lcoinAccount?.balance || 0;
 
   async function fetchProfile(uid: string) {
     const { data: adminData } = await supabase.from('admin_profiles').select('*').eq('id', uid).maybeSingle();
@@ -53,6 +61,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function fetchUserProfile(uid: string) {
     const { data } = await supabase.from('user_profiles').select('*').eq('id', uid).maybeSingle();
     setUserProfile(data);
+  }
+
+  async function fetchLcoinAccount(uid: string) {
+    const account = await getLcoinAccount(uid);
+    setLcoinAccount(account);
   }
 
   function subscribeToSessionKick(userId: string, sessionKey: string) {
@@ -124,8 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const u = session?.user ?? null;
       setUser(u);
       if (u) {
-        Promise.all([fetchProfile(u.id), fetchUserProfile(u.id)]).finally(() => setLoading(false));
-        // Re-subscribe on page refresh for existing session
+        Promise.all([fetchProfile(u.id), fetchUserProfile(u.id), fetchLcoinAccount(u.id)]).finally(() => setLoading(false));
         const key = localStorage.getItem('session_key');
         if (key) subscribeToSessionKick(u.id, key);
       } else {
@@ -139,12 +151,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (u) {
         fetchProfile(u.id);
         fetchUserProfile(u.id);
+        fetchLcoinAccount(u.id);
         if (_event === 'SIGNED_IN') {
           registerSession(u.id);
         }
       } else {
         setProfile(null);
         setUserProfile(null);
+        setLcoinAccount(null);
         setIsAdmin(false);
         cleanupSession();
       }
@@ -236,8 +250,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user) await fetchUserProfile(user.id);
   }
 
+  async function refreshLcoinAccount() {
+    if (user) await fetchLcoinAccount(user.id);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, profile, userProfile, isAdmin, loading, signIn, signInClient, signOut, refreshProfile, refreshUserProfile }}>
+    <AuthContext.Provider value={{ user, profile, userProfile, lcoinAccount, isAdmin, isVip, lcoinBalance, loading, signIn, signInClient, signOut, refreshProfile, refreshUserProfile, refreshLcoinAccount }}>
       {children}
     </AuthContext.Provider>
   );

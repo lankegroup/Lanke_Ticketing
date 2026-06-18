@@ -70,8 +70,11 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [rechargeReason, setRechargeReason] = useState('');
   const [recharging, setRecharging] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState<any>(null);
+  const [packages, setPackages] = useState<any[]>([]);
+  const [userBalances, setUserBalances] = useState<Map<string, number>>(new Map());
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchUsers(); fetchPackages(); }, []);
 
   async function fetchUsers() {
     const { data } = await supabase.from('user_profiles').select('*').order('created_at', { ascending: false });
@@ -79,6 +82,33 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
       ...u,
       username: u.display_name || u.id.slice(0, 8),
     })));
+    fetchBalances(data ?? []);
+  }
+
+  async function fetchBalances(userList: any[]) {
+    const balances = new Map<string, number>();
+    for (const user of userList) {
+      try {
+        const { data } = await supabase.rpc('get_user_balance', { p_user_id: user.id });
+        let bal = 0;
+        if (data !== null && data !== undefined) {
+          if (typeof data === 'object') {
+            bal = Number((data as any).balance ?? (data as any).l_coin_balance ?? 0);
+          } else {
+            bal = Number(data) || 0;
+          }
+        }
+        balances.set(user.id, bal);
+      } catch {
+        balances.set(user.id, 0);
+      }
+    }
+    setUserBalances(balances);
+  }
+
+  async function fetchPackages() {
+    const { data } = await supabase.rpc('get_recharge_packages');
+    setPackages(data || []);
   }
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
@@ -174,10 +204,13 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
       if (error || !data) {
         showToast(error?.message || '充值失败', 'error');
       } else {
-        showToast(`成功充值 ${amount} L-Coin`, 'success');
+        showToast(`成功充值 ${amount} 兰克币`, 'success');
+        userBalances.set(rechargeUser.id, (userBalances.get(rechargeUser.id) || 0) + amount);
+        setUserBalances(new Map(userBalances));
         setRechargeUser(null);
         setRechargeAmount('');
         setRechargeReason('');
+        setSelectedPackage(null);
       }
     } catch (e: any) {
       showToast(e.message || '充值失败', 'error');
@@ -260,7 +293,7 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
       {rechargeUser && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setRechargeUser(null)}>
           <div
-            className="bg-white rounded-t-3xl w-full max-w-md p-5 space-y-4"
+            className="bg-white rounded-t-3xl w-full max-w-md p-5 space-y-4 max-h-[85vh] overflow-y-auto"
             onClick={e => e.stopPropagation()}
           >
             <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
@@ -268,14 +301,38 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
             </h3>
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
               <p className="text-xs text-amber-700">用户：{rechargeUser.display_name || rechargeUser.id.slice(0, 8)}</p>
-              <p className="text-xs text-amber-600 mt-1">手机号：{rechargeUser.phone || '未填写'}</p>
+              <p className="text-xs text-amber-600">手机号：{rechargeUser.phone || '未填写'}</p>
+              <p className="text-xs text-amber-600 mt-1">当前余额：<span className="font-bold">{userBalances.get(rechargeUser.id) || 0}</span> 兰克币</p>
             </div>
+            {packages.length > 0 && (
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">选择套餐（可选）</label>
+                <select
+                  value={selectedPackage?.id || ''}
+                  onChange={e => {
+                    const pkg = packages.find(p => p.id === e.target.value);
+                    setSelectedPackage(pkg || null);
+                    if (pkg) {
+                      setRechargeAmount(String(pkg.lcoin_amount));
+                    }
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                >
+                  <option value="">手动输入金额</option>
+                  {packages.map(pkg => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.name} — {pkg.price}元 = {pkg.lcoin_amount}兰克币
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">充值金额（L-Coin）</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">充值金额（兰克币）</label>
                 <input
                   value={rechargeAmount}
-                  onChange={e => setRechargeAmount(e.target.value)}
+                  onChange={e => { setRechargeAmount(e.target.value); setSelectedPackage(null); }}
                   placeholder="请输入充值金额"
                   type="number"
                   min="0"
@@ -305,7 +362,7 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
                 disabled={recharging || !rechargeAmount.trim() || parseFloat(rechargeAmount) <= 0}
                 className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
               >
-                {recharging ? '充值中...' : `确认充值 ${rechargeAmount} L-Coin`}
+                {recharging ? '充值中...' : `确认充值 ${rechargeAmount} 兰克币`}
               </button>
             </div>
           </div>
@@ -381,6 +438,9 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
                     <p className="text-xs text-gray-400">
                       {u.phone ? u.phone : <span className="text-amber-500">未填手机号</span>}
                       {' · '}{new Date(u.created_at).toLocaleDateString()}
+                    </p>
+                    <p className="text-xs text-amber-500 mt-0.5 flex items-center gap-1">
+                      <Coins size={10} /> {userBalances.get(u.id) || 0} 兰克币
                     </p>
                   </div>
                 </div>
