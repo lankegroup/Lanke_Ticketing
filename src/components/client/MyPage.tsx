@@ -1111,7 +1111,6 @@ function BalanceView({ balance, onBack, onRecharge }: { balance: string; onBack:
               ))}
             </div>
           )}</div>
-        </div>
 
         {rechargeDescription && (
           <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5">
