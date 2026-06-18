@@ -91,6 +91,9 @@ export type Session = {
   stage_center_col: number | null;
   booking_notice: string;
   ticket_price: number;
+  child_price: number | null;
+  concession_price: number | null;
+  vip_price: number | null;
   default_service_fee: number;
 };
 

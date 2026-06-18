@@ -1349,6 +1349,9 @@ function SessionEditor({
   const [coverImage, setCoverImage] = useState(initial.cover_image || '');
   const [isActive, setIsActive] = useState(initial.is_active);
   const [ticketPrice, setTicketPrice] = useState(initial.ticket_price ?? 0);
+  const [childPrice, setChildPrice] = useState(initial.child_price ?? 0);
+  const [concessionPrice, setConcessionPrice] = useState(initial.concession_price ?? 0);
+  const [vipPrice, setVipPrice] = useState(initial.vip_price ?? 0);
   const [defaultServiceFee, setDefaultServiceFee] = useState(initial.default_service_fee ?? 0);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -1655,6 +1658,9 @@ function SessionEditor({
       stage_center_col: hasSeatingChart ? stageCenterCol : null,
       booking_notice: bookingNoticeHtml === '<p><br></p>' ? '' : bookingNoticeHtml,
       ticket_price: ticketPrice,
+      child_price: childPrice || null,
+      concession_price: concessionPrice || null,
+      vip_price: vipPrice || null,
       default_service_fee: defaultServiceFee,
     };
 
@@ -2212,28 +2218,59 @@ function SessionEditor({
 
         {/* Ticket Price + Default Service Fee */}
         <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{isEn ? 'Pricing' : '价格设置'}</h3>
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{isEn ? 'Pricing (Lanke Coins)' : '价格设置（兰克币）'}</h3>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-gray-400 mb-1 block">{isEn ? 'Ticket Price' : '票价（元）'}</label>
+              <label className="text-[10px] text-gray-400 mb-1 block">{isEn ? 'Adult Ticket Price' : '成人票价'}</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">¥</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 font-medium text-sm">LC</span>
                 <input type="number" min="0" step="0.01" value={ticketPrice || ''} onChange={e => setTicketPrice(parseFloat(e.target.value) || 0)}
-                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                   placeholder="0.00" />
               </div>
             </div>
             <div>
-              <label className="text-[10px] text-gray-400 mb-1 block">{isEn ? 'Default Service Fee' : '默认手续费（元）'}</label>
+              <label className="text-[10px] text-gray-400 mb-1 block">{isEn ? 'Child Ticket Price' : '儿童票价'}</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium text-sm">¥</span>
-                <input type="number" min="0" step="0.01" value={defaultServiceFee || ''} onChange={e => setDefaultServiceFee(parseFloat(e.target.value) || 0)}
-                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 font-medium text-sm">LC</span>
+                <input type="number" min="0" step="0.01" value={childPrice || ''} onChange={e => setChildPrice(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  placeholder="0.00" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 mb-1 block">{isEn ? 'Concession Price' : '优待票价'}</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 font-medium text-sm">LC</span>
+                <input type="number" min="0" step="0.01" value={concessionPrice || ''} onChange={e => setConcessionPrice(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  placeholder="0.00" />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] text-gray-400 mb-1 block">{isEn ? 'VIP Ticket Price' : 'VIP票价'}</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 font-medium text-sm">LC</span>
+                <input type="number" min="0" step="0.01" value={vipPrice || ''} onChange={e => setVipPrice(parseFloat(e.target.value) || 0)}
+                  className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                   placeholder="0.00" />
               </div>
             </div>
           </div>
-          <p className="text-[10px] text-gray-400">{isEn ? 'Default service fee will pre-fill the print modal' : '默认手续费将在打印弹窗中自动填入'}</p>
+          <div className="pt-2 border-t border-gray-100">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-gray-400 mb-1 block">{isEn ? 'Default Service Fee' : '默认手续费'}</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500 font-medium text-sm">LC</span>
+                  <input type="number" min="0" step="0.01" value={defaultServiceFee || ''} onChange={e => setDefaultServiceFee(parseFloat(e.target.value) || 0)}
+                    className="w-full border border-gray-200 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                    placeholder="0.00" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400">{isEn ? 'Prices are in Lanke Coins. Default service fee will pre-fill the print modal.' : '价格以兰克币计价。默认手续费将在打印弹窗中自动填入。'}</p>
         </div>
 
         {/* Cover Image */}

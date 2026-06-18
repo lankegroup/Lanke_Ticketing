@@ -540,6 +540,7 @@ function BookingFormView({
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [balance, setBalance] = useState<number>(0);
   const [balanceLoading, setBalanceLoading] = useState(true);
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -646,6 +647,11 @@ function BookingFormView({
       }
     }
 
+    if (totalPrice > 0) {
+      setShowPaymentConfirm(true);
+      return;
+    }
+
     setSubmitting(true);
     setProgress({ done: 0, total: totalOrders });
 
@@ -729,6 +735,87 @@ function BookingFormView({
     }
   }
 
+  async function handleConfirmPayment() {
+    setShowPaymentConfirm(false);
+    setSubmitting(true);
+    setProgress({ done: 0, total: totalOrders });
+
+    let effectiveUserId: string | null = userId;
+    let buyerUserId: string | null = null;
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone.length >= 7) {
+      const { data: phoneMatch } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('phone', trimmedPhone)
+        .maybeSingle();
+      if (phoneMatch && phoneMatch.id !== userId) {
+        effectiveUserId = phoneMatch.id;
+        buyerUserId = userId;
+      }
+    }
+
+    let successCount = 0;
+    const errors: string[] = [];
+
+    for (let i = 0; i < orders.length; i++) {
+      const order = orders[i];
+      setProgress({ done: i, total: totalOrders });
+
+      const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
+      const ticketType = order.ticketType;
+
+      const bookResult = await callEdgeFunction('book-ticket', {
+        p_session_id: session.id,
+        p_seat_id: seatId ?? null,
+        p_name: name.trim(),
+        p_phone: trimmedPhone,
+        p_user_id: effectiveUserId ?? null,
+        p_ticket_type: ticketType,
+        p_buyer_user_id: buyerUserId ?? null,
+        p_note_content: noteContent.trim() || null,
+      });
+      const rpcResult = bookResult.data as any;
+
+      if (bookResult.error || !rpcResult?.success) {
+        if (rpcResult?.error === 'sold_out') {
+          onSoldOut();
+          setSubmitting(false);
+          return;
+        } else if (rpcResult?.error === 'insufficient_balance') {
+          const required = rpcResult.required || totalPrice;
+          showToast(isEn ? `Insufficient L-Coin balance. Required: ${required} L-Coin` : `兰克币余额不足，需 ${required} L-Coin`, 'error');
+          setSubmitting(false);
+          return;
+        } else if (rpcResult?.error === 'seat_taken' || rpcResult?.error === 'lock_expired') {
+          errors.push(hasSeats ? (order as SeatWithTicket).seatName : `Order ${i + 1}`);
+        } else if (rpcResult?.error === 'invalid_remark') {
+          errors.push('remark');
+        } else {
+          errors.push(`Order ${i + 1}`);
+        }
+      } else {
+        successCount++;
+      }
+    }
+
+    setSubmitting(false);
+
+    if (successCount === totalOrders) {
+      showToast(isEn ? 'Booking successful!' : '预约成功！', 'success');
+      onSuccess();
+    } else if (successCount > 0) {
+      showToast(isEn ? `Partial success: ${successCount}/${totalOrders}` : `部分成功: ${successCount}/${totalOrders}`, 'warning');
+      onSuccess();
+    } else {
+      if (errors.includes('remark')) {
+        setError(isEn ? 'Invalid remark content' : '备注内容无效');
+      } else {
+        setError(isEn ? `All bookings failed: ${errors.join(', ')}` : `全部预订失败: ${errors.join(', ')}`);
+      }
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* 顶部导航栏 */}
@@ -779,37 +866,43 @@ function BookingFormView({
               {/* 票价明细 */}
               <div className="space-y-2">
                 <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{isEn ? 'Ticket Price' : '活动票价'}</p>
-                {hasSeats && selectedSeats.map((s, idx) => (
-                  <div key={s.seatId} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs flex items-center justify-center">{idx + 1}</span>
-                      <div>
-                        <p className="text-sm text-gray-700">{formatSeatName(s.seatName, isEn)}</p>
-                        <p className="text-xs text-gray-400">
+                {hasSeats && selectedSeats.map((s, idx) => {
+                  const seatPrice = getTicketPrice(s.ticketType);
+                  return (
+                    <div key={s.seatId} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs flex items-center justify-center">{idx + 1}</span>
+                        <div>
+                          <p className="text-sm text-gray-700">{formatSeatName(s.seatName, isEn)}</p>
+                          <p className="text-xs text-gray-400">
+                            {isEn 
+                              ? (s.ticketType === 'adult' ? 'Adult' : s.ticketType === 'child' ? 'Child' : 'Concession')
+                              : (s.ticketType === 'adult' ? '成人票' : s.ticketType === 'child' ? '儿童票' : '优待票')
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-sm font-medium text-red-500">-{seatPrice} {isEn ? 'Lanke Coins' : '兰克币'}</span>
+                    </div>
+                  );
+                })}
+                {!hasSeats && nonSeatEntries.map((entry, idx) => {
+                  const seatPrice = getTicketPrice(entry.ticketType);
+                  return (
+                    <div key={entry.id} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs flex items-center justify-center">{idx + 1}</span>
+                        <p className="text-sm text-gray-700">
                           {isEn 
-                            ? (s.ticketType === 'adult' ? 'Adult' : s.ticketType === 'child' ? 'Child' : 'Concession')
-                            : (s.ticketType === 'adult' ? '成人票' : s.ticketType === 'child' ? '儿童票' : '优待票')
+                            ? (entry.ticketType === 'adult' ? 'Adult Ticket' : entry.ticketType === 'child' ? 'Child Ticket' : 'Concession Ticket')
+                            : (entry.ticketType === 'adult' ? '成人票' : entry.ticketType === 'child' ? '儿童票' : '优待票')
                           }
                         </p>
                       </div>
+                      <span className="text-sm font-medium text-red-500">-{seatPrice} {isEn ? 'Lanke Coins' : '兰克币'}</span>
                     </div>
-                    <span className="text-sm font-medium text-red-500">-{ticketPrice} {isEn ? 'Lanke Coins' : '兰克币'}</span>
-                  </div>
-                ))}
-                {!hasSeats && nonSeatEntries.map((entry, idx) => (
-                  <div key={entry.id} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs flex items-center justify-center">{idx + 1}</span>
-                      <p className="text-sm text-gray-700">
-                        {isEn 
-                          ? (entry.ticketType === 'adult' ? 'Adult Ticket' : entry.ticketType === 'child' ? 'Child Ticket' : 'Concession Ticket')
-                          : (entry.ticketType === 'adult' ? '成人票' : entry.ticketType === 'child' ? '儿童票' : '优待票')
-                        }
-                      </p>
-                    </div>
-                    <span className="text-sm font-medium text-red-500">-{ticketPrice} {isEn ? 'Lanke Coins' : '兰克币'}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* 服务费明细 */}
@@ -817,7 +910,7 @@ function BookingFormView({
                 <div className="pt-2 border-t border-gray-100">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-gray-600">{isEn ? 'Service Fee' : '服务费'}</p>
-                    <span className="text-sm font-medium text-gray-600">-{serviceFee} {isEn ? 'Lanke Coins' : '兰克币'}</span>
+                    <span className="text-sm font-medium text-gray-600">-{session.default_service_fee} {isEn ? 'Lanke Coins' : '兰克币'}</span>
                   </div>
                 </div>
               )}
@@ -988,6 +1081,66 @@ function BookingFormView({
           </div>
         </div>
       </form>
+
+      {showPaymentConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Coins size={24} className="text-amber-500" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">{isEn ? 'Confirm Payment' : '确认支付'}</h3>
+              <p className="text-sm text-gray-500 mt-1">{isEn ? 'Please confirm to proceed with the payment' : '请确认进行支付'}</p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">{isEn ? 'Event' : '活动名称'}</span>
+                <span className="font-medium text-gray-900 truncate max-w-[150px]">{session.name}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">{isEn ? 'Tickets' : '票数'}</span>
+                <span className="font-medium text-gray-900">{totalOrders}</span>
+              </div>
+              <div className="border-t border-gray-200 pt-2 flex justify-between">
+                <span className="text-gray-600">{isEn ? 'Total Amount' : '应付总额'}</span>
+                <span className="text-xl font-bold text-amber-500 flex items-center gap-1">
+                  <Coins size={18} />
+                  {totalPrice.toFixed(2)}
+                </span>
+              </div>
+              {userId && (
+                <div className="text-xs text-gray-400 pt-1">
+                  {isEn ? `Balance: ${balance.toFixed(2)} Lanke Coins` : `余额: ${balance.toFixed(2)} 兰克币`}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowPaymentConfirm(false)}
+                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+              >
+                {isEn ? 'Cancel' : '取消'}
+              </button>
+              <button
+                onClick={handleConfirmPayment}
+                disabled={submitting}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 text-white font-semibold hover:from-amber-400 hover:to-amber-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    {isEn ? 'Paying...' : '支付中...'}
+                  </span>
+                ) : (
+                  isEn ? 'Confirm Payment' : '确认支付'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
