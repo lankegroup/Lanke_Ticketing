@@ -518,7 +518,8 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
   const [showBookingNotice, setShowBookingNotice] = useState(false);
   const [pendingPrint, setPendingPrint] = useState<{ ticketCode: string; seatName?: string; supplementary: boolean; registrationId?: string } | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'rmb' | 'lcoin'>('rmb');
+  const [paymentMethod, setPaymentMethod] = useState<'rmb' | 'lcoin' | 'mixed'>('rmb');
+  const [rmbAmount, setRmbAmount] = useState('');
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const [customerBalance, setCustomerBalance] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -692,16 +693,20 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     setSubmitting(true);
     setError('');
 
-    if (paymentMethod === 'lcoin' && matchedUserId) {
-      if (customerBalance < totalPrice) {
-        setError(`余额不足！当前余额 ${customerBalance} L-Coin，需支付 ${totalPrice} L-Coin`);
+    const rmbPayAmount = parseFloat(rmbAmount || '0');
+    const lcoinPayAmount = paymentMethod === 'mixed' ? Math.max(0, totalPrice - rmbPayAmount) : 
+                          paymentMethod === 'lcoin' ? totalPrice : 0;
+
+    if (lcoinPayAmount > 0 && matchedUserId) {
+      if (customerBalance < lcoinPayAmount) {
+        setError(`余额不足！当前余额 ${customerBalance} L-Coin，需支付 ${lcoinPayAmount} L-Coin`);
         setSubmitting(false);
         return;
       }
 
       const deductResult = await supabase.rpc('lcoin_transaction', {
         p_user_id: matchedUserId,
-        p_amount: totalPrice,
+        p_amount: lcoinPayAmount,
         p_description: `购票：${selectedSession.name}`,
         p_type: 'purchase',
       });
@@ -745,14 +750,17 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     setSuccessTickets(results);
     setStep('done');
 
-    if (paymentMethod === 'lcoin' && matchedUserId) {
+    if ((paymentMethod === 'lcoin' || paymentMethod === 'mixed') && matchedUserId) {
       const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: matchedUserId });
       setCustomerBalance(Number(balData) || 0);
     }
 
     if (results.length > 0) {
-      setPendingPrint({ ticketCode: results[0].ticket_code, seatName: results[0].seat_name, supplementary: isSupplementary, registrationId: results[0].registration_id });
-      setShowPrintModal(true);
+      setTimeout(() => {
+        results.forEach((t, i) => {
+          setTimeout(() => generateAndDownload(t.ticket_code, t.seat_name, isSupplementary, t.registration_id), i * 300);
+        });
+      }, 500);
     }
   }
 
@@ -1187,48 +1195,103 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
 
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-2">支付方式</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 type="button"
                 onClick={() => setPaymentMethod('rmb')}
-                className={`p-3 rounded-xl border-2 text-left transition-all ${
+                className={`p-2.5 rounded-xl border-2 text-left transition-all ${
                   paymentMethod === 'rmb' ? 'border-sky-500 bg-sky-50' : 'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${paymentMethod === 'rmb' ? 'bg-sky-500' : 'bg-gray-200'}`}>
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${paymentMethod === 'rmb' ? 'bg-sky-500' : 'bg-gray-200'}`}>
                     <span className="text-white text-xs font-bold">¥</span>
                   </div>
-                  <span className={`text-sm font-medium ${paymentMethod === 'rmb' ? 'text-sky-700' : 'text-gray-600'}`}>人民币</span>
+                  <span className={`text-xs font-medium ${paymentMethod === 'rmb' ? 'text-sky-700' : 'text-gray-600'}`}>人民币</span>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">由操作员验收</p>
+                <p className="text-[9px] text-gray-400 mt-0.5">操作员验收</p>
               </button>
               <button
                 type="button"
                 onClick={() => matchedUserId && setPaymentMethod('lcoin')}
                 disabled={!matchedUserId}
-                className={`p-3 rounded-xl border-2 text-left transition-all ${
+                className={`p-2.5 rounded-xl border-2 text-left transition-all ${
                   paymentMethod === 'lcoin' ? 'border-amber-500 bg-amber-50' :
                   !matchedUserId ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed' :
                   'border-gray-200 hover:border-gray-300'
                 }`}
               >
-                <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
                     paymentMethod === 'lcoin' ? 'bg-amber-500' : !matchedUserId ? 'bg-gray-300' : 'bg-amber-100'
                   }`}>
                     <span className={`text-xs font-bold ${paymentMethod === 'lcoin' || !matchedUserId ? 'text-white' : 'text-amber-600'}`}>LC</span>
                   </div>
-                  <span className={`text-sm font-medium ${
+                  <span className={`text-xs font-medium ${
                     paymentMethod === 'lcoin' ? 'text-amber-700' : !matchedUserId ? 'text-gray-400' : 'text-gray-600'
                   }`}>兰克币</span>
                 </div>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  {matchedUserId ? `余额: ${customerBalance} LC` : '需匹配用户'}
+                <p className="text-[9px] text-gray-400 mt-0.5">
+                  {matchedUserId ? `余额: ${customerBalance}` : '需匹配用户'}
                 </p>
+              </button>
+              <button
+                type="button"
+                onClick={() => matchedUserId && setPaymentMethod('mixed')}
+                disabled={!matchedUserId}
+                className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+                  paymentMethod === 'mixed' ? 'border-purple-500 bg-purple-50' :
+                  !matchedUserId ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed' :
+                  'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5">
+                  <div className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                    paymentMethod === 'mixed' ? 'bg-purple-500' : !matchedUserId ? 'bg-gray-300' : 'bg-purple-100'
+                  }`}>
+                    <span className={`text-xs font-bold ${paymentMethod === 'mixed' || !matchedUserId ? 'text-white' : 'text-purple-600'}`}>¥+LC</span>
+                  </div>
+                  <span className={`text-xs font-medium ${
+                    paymentMethod === 'mixed' ? 'text-purple-700' : !matchedUserId ? 'text-gray-400' : 'text-gray-600'
+                  }`}>混合支付</span>
+                </div>
+                <p className="text-[9px] text-gray-400 mt-0.5">人民币+兰克币</p>
               </button>
             </div>
           </div>
+
+          {paymentMethod === 'mixed' && matchedUserId && (
+            <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-600">应付总额</span>
+                <span className="text-sm font-bold text-purple-700">{totalPrice} LC</span>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">人民币支付金额（元）</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">¥</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={rmbAmount}
+                    onChange={e => setRmbAmount(e.target.value)}
+                    className="w-full border border-purple-200 rounded-xl pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+                    placeholder="0.00"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between text-xs pt-1 border-t border-purple-200">
+                <span className="text-gray-600">兰克币支付金额</span>
+                <span className="font-medium text-amber-600">
+                  {Math.max(0, totalPrice - parseFloat(rmbAmount || '0')).toFixed(2)} LC
+                </span>
+              </div>
+              {customerBalance < totalPrice - parseFloat(rmbAmount || '0') && (
+                <p className="text-[10px] text-red-500">余额不足！当前余额 {customerBalance} LC</p>
+              )}
+            </div>
+          )}
 
           {error && <p className="text-xs text-red-500">{error}</p>}
 
@@ -1262,17 +1325,18 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
           <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
             <div className="text-center">
               <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${
-                paymentMethod === 'rmb' ? 'bg-sky-100' : 'bg-amber-100'
+                paymentMethod === 'rmb' ? 'bg-sky-100' : paymentMethod === 'lcoin' ? 'bg-amber-100' : 'bg-purple-100'
               }`}>
-                <span className={`text-lg font-bold ${paymentMethod === 'rmb' ? 'text-sky-600' : 'text-amber-600'}`}>
-                  {paymentMethod === 'rmb' ? '¥' : 'LC'}
+                <span className={`text-lg font-bold ${paymentMethod === 'rmb' ? 'text-sky-600' : paymentMethod === 'lcoin' ? 'text-amber-600' : 'text-purple-600'}`}>
+                  {paymentMethod === 'rmb' ? '¥' : paymentMethod === 'lcoin' ? 'LC' : '¥+LC'}
                 </span>
               </div>
               <h3 className="text-lg font-bold text-gray-900">
-                {paymentMethod === 'rmb' ? '人民币支付确认' : '兰克币支付确认'}
+                {paymentMethod === 'rmb' ? '人民币支付确认' : paymentMethod === 'lcoin' ? '兰克币支付确认' : '混合支付确认'}
               </h3>
               <p className="text-sm text-gray-500 mt-1">
-                {paymentMethod === 'rmb' ? '请确认已完成人民币收款' : '将从用户账户中扣除兰克币'}
+                {paymentMethod === 'rmb' ? '请确认已完成人民币收款' : 
+                 paymentMethod === 'lcoin' ? '将从用户账户中扣除兰克币' : '人民币+兰克币混合支付'}
               </p>
             </div>
             
@@ -1289,17 +1353,29 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-600">支付方式</span>
-                <span className={`font-medium ${paymentMethod === 'rmb' ? 'text-sky-600' : 'text-amber-600'}`}>
-                  {paymentMethod === 'rmb' ? '人民币' : '兰克币'}
+                <span className={`font-medium ${paymentMethod === 'rmb' ? 'text-sky-600' : paymentMethod === 'lcoin' ? 'text-amber-600' : 'text-purple-600'}`}>
+                  {paymentMethod === 'rmb' ? '人民币' : paymentMethod === 'lcoin' ? '兰克币' : '混合支付'}
                 </span>
               </div>
+              {paymentMethod === 'mixed' && (
+                <>
+                  <div className="flex justify-between text-sm pt-1">
+                    <span className="text-gray-600">人民币支付</span>
+                    <span className="font-medium text-sky-600">¥{parseFloat(rmbAmount || '0').toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">兰克币支付</span>
+                    <span className="font-medium text-amber-600">{Math.max(0, totalPrice - parseFloat(rmbAmount || '0')).toFixed(2)} LC</span>
+                  </div>
+                </>
+              )}
               <div className="border-t border-gray-200 pt-2 flex justify-between">
                 <span className="text-gray-600">应付总额</span>
-                <span className={`text-xl font-bold ${paymentMethod === 'rmb' ? 'text-sky-500' : 'text-amber-500'}`}>
-                  {totalPrice} {paymentMethod === 'rmb' ? '元' : 'LC'}
+                <span className={`text-xl font-bold ${paymentMethod === 'rmb' ? 'text-sky-500' : paymentMethod === 'lcoin' ? 'text-amber-500' : 'text-purple-500'}`}>
+                  {totalPrice} LC
                 </span>
               </div>
-              {paymentMethod === 'lcoin' && matchedUserId && (
+              {(paymentMethod === 'lcoin' || paymentMethod === 'mixed') && matchedUserId && (
                 <div className="text-xs text-gray-400 pt-1">
                   当前余额: {customerBalance} LC
                 </div>

@@ -45,9 +45,26 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
   const [showForceWarning, setShowForceWarning] = useState(false);
   const [pendingForce, setPendingForce] = useState(false);
   const [ticketType, setTicketType] = useState<TicketType>('adult');
+  const [customerBalance, setCustomerBalance] = useState<number>(0);
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const lockedSeatRef = useRef<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const getTicketPrice = (type: TicketType) => {
+    if (!selectedSession) return 0;
+    switch (type) {
+      case 'child': return selectedSession.child_price ?? selectedSession.ticket_price * 0.5;
+      case 'concession': return selectedSession.concession_price ?? selectedSession.ticket_price * 0.8;
+      case 'vip': return selectedSession.vip_price ?? selectedSession.ticket_price * 1.5;
+      default: return selectedSession.ticket_price;
+    }
+  };
+
+  const fetchCustomerBalance = async () => {
+    const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: user.id });
+    setCustomerBalance(Number(balData) || 0);
+  };
 
   useEffect(() => {
     supabase
@@ -57,6 +74,8 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       .order('session_date')
       .order('start_time')
       .then(({ data }) => setSessions(data ?? []));
+
+    fetchCustomerBalance();
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
@@ -225,6 +244,27 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
     setError('');
     setSubmitting(true);
 
+    const ticketPrice = getTicketPrice(ticketType);
+    
+    if (customerBalance < ticketPrice) {
+      setError(`余额不足！当前余额 ${customerBalance} L-Coin，需支付 ${ticketPrice} L-Coin`);
+      setSubmitting(false);
+      return;
+    }
+
+    const deductResult = await supabase.rpc('lcoin_transaction', {
+      p_user_id: user.id,
+      p_amount: ticketPrice,
+      p_description: `代客预约：${selectedSession.name}`,
+      p_type: 'purchase',
+    });
+
+    if (!deductResult.data?.success) {
+      setError('扣款失败，请重试');
+      setSubmitting(false);
+      return;
+    }
+
     const selectedSeat = seats.find(s => s.id === selectedSeatId);
     const isForce = pendingForce || (selectedSeat?.is_blocked ?? false);
 
@@ -242,6 +282,12 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
     const rpcResult = bookResult.data as any;
 
     if (bookResult.error || !rpcResult?.success) {
+      await supabase.rpc('lcoin_transaction', {
+        p_user_id: user.id,
+        p_amount: ticketPrice,
+        p_description: `退款：代客预约失败 ${selectedSession.name}`,
+        p_type: 'recharge',
+      });
       const msg = rpcResult?.error;
       if (msg === 'sold_out') setError('该场次已售罄');
       else if (msg === 'seat_taken') setError('座位已被预订，请返回重新选择');
@@ -493,6 +539,18 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
                   <span className="text-sm text-gray-500 flex items-center gap-1"><Ticket size={12} /> 票种</span>
                   <TicketTypeSegmented value={ticketType} onChange={setTicketType} />
                 </div>
+                <div className="border-t border-gray-200 pt-2 space-y-1">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">票价</span>
+                    <span className="font-bold text-amber-600">{getTicketPrice(ticketType)} LC</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-500">当前余额</span>
+                    <span className={`font-medium ${customerBalance >= getTicketPrice(ticketType) ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {customerBalance} LC
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {!user.phone && (
@@ -506,7 +564,7 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
               )}
 
               <button
-                onClick={handleSubmit}
+                onClick={() => setShowPaymentConfirm(true)}
                 disabled={submitting}
                 className={`w-full ${isForceBooking ? 'bg-amber-500 hover:bg-amber-400' : 'bg-emerald-500 hover:bg-emerald-400'} disabled:opacity-60 text-white font-bold py-3.5 rounded-xl text-sm transition-colors`}
               >
@@ -535,6 +593,57 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
               >
                 关闭
               </button>
+            </div>
+          )}
+
+          {showPaymentConfirm && selectedSession && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
+                <div className="text-center">
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 bg-amber-100">
+                    <span className="text-lg font-bold text-amber-600">LC</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">兰克币支付确认</h3>
+                  <p className="text-sm text-gray-500 mt-1">将从用户账户中扣除兰克币</p>
+                </div>
+                
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">客户</span>
+                    <span className="font-medium text-gray-900">{user.display_name || '-'}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">活动名称</span>
+                    <span className="font-medium text-gray-900 truncate max-w-[150px]">{selectedSession.name}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">票价</span>
+                    <span className="font-bold text-amber-600">{getTicketPrice(ticketType)} LC</span>
+                  </div>
+                  <div className="border-t border-gray-200 pt-2 flex justify-between">
+                    <span className="text-gray-600">当前余额</span>
+                    <span className={`font-medium ${customerBalance >= getTicketPrice(ticketType) ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {customerBalance} LC
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowPaymentConfirm(false)}
+                    className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={() => { setShowPaymentConfirm(false); handleSubmit(); }}
+                    disabled={customerBalance < getTicketPrice(ticketType)}
+                    className="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:bg-gray-200 text-white font-semibold transition-colors"
+                  >
+                    确认扣款
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
