@@ -350,8 +350,8 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // Copyright line — Chinese
   ctx.fillStyle = '#4a4a4a';
-  ctx.font = `bold ${22 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台', W / 2, fBase + 218 * D);
+  ctx.font = `${22 * D}px sans-serif`;
+  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 218 * D);
   // Copyright line — English
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
