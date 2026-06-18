@@ -59,19 +59,6 @@ export function renderTicketToCanvas(p: TicketParams): void {
   const D = 2;
   const W = 651 * D;
   const PAD = 34 * D;
-  const QR_SIZE = 260 * D;
-  const VALUE_X = PAD + 150 * D;
-
-  const LABEL_SIZE = 22 * D;
-  const EN_LABEL_SIZE = 22 * D;
-  const VALUE_SIZE = 28 * D;
-  const EN_VALUE_SIZE = 26 * D;
-  const ROW_HEIGHT = 72 * D;
-
-  const LABEL_COLOR = '#5c4a3a';
-  const LABEL_COLOR_EN = '#9b8b7b';
-  const VALUE_COLOR = '#0f172a';
-  const VALUE_COLOR_EN = '#374151';
 
   const activityTimeCn = `${p.sessionDate} ${p.startTime.slice(0, 5)} – ${p.endTime.slice(0, 5)}`;
   const activityTimeEn = activityTimeCn;
@@ -134,17 +121,32 @@ export function renderTicketToCanvas(p: TicketParams): void {
     ...(p.printedAt ? [{ cn: '打印时间', en: 'Print Time', cnVal: p.printedAt, enVal: p.printedAt }] : []),
   ];
 
+  const ctx = p.canvas.getContext('2d')!;
+
+  const QR_SIZE = 260 * D;
+  const LABEL_SIZE = 22 * D;
+  const EN_LABEL_SIZE = 22 * D;
+  const VALUE_SIZE = 28 * D;
+  const EN_VALUE_SIZE = 26 * D;
+  const ROW_HEIGHT = 72 * D;
+
+  const LABEL_COLOR = '#5c4a3a';
+  const LABEL_COLOR_EN = '#9b8b7b';
+  const VALUE_COLOR = '#0f172a';
+  const VALUE_COLOR_EN = '#374151';
+
+  const BADGE_TOP = 22 * D;
+  const HEADER_CN_Y = 76 * D;
+  const HEADER_EN_Y = 104 * D;
   const HEADER_H = 120 * D;
   const DATA_START_Y = HEADER_H + 20 * D;
-  const DATA_H = rows.length * ROW_HEIGHT;
-  const PERF_Y = DATA_START_Y + DATA_H;
+  const PERF_Y = DATA_START_Y + rows.length * ROW_HEIGHT;
   const QR_Y = PERF_Y + 30 * D;
   const FOOTER_H = 260 * D;
   const H = QR_Y + QR_SIZE + FOOTER_H;
 
   p.canvas.width = W;
   p.canvas.height = H;
-  const ctx = p.canvas.getContext('2d')!;
 
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
@@ -168,15 +170,14 @@ export function renderTicketToCanvas(p: TicketParams): void {
     const BW = textWidth + paddingX * 2;
     const BH = 26 * D + paddingY * 2;
     const BX = W - PAD - BW - 8 * D;
-    const BY = 22 * D;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(BX, BY, BW, BH, 12 * D);
+    ctx.roundRect(BX, BADGE_TOP, BW, BH, 12 * D);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, BX + BW / 2, BY + BH / 2);
+    ctx.fillText(label, BX + BW / 2, BADGE_TOP + BH / 2);
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
   }
@@ -185,21 +186,21 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // ── Header ───────────────────────────────────────────────────────────
   ctx.textBaseline = 'bottom';
-  
+
   ctx.font = `bold ${36 * D}px sans-serif`;
   ctx.fillStyle = '#0f172a';
-  ctx.fillText(p.sessionName, PAD, 80 * D);
+  ctx.fillText(p.sessionName, PAD, HEADER_CN_Y);
 
   ctx.font = `bold ${24 * D}px sans-serif`;
-  ctx.fillText(sessionNameEn, PAD, 110 * D);
+  ctx.fillText(sessionNameEn, PAD, HEADER_EN_Y);
 
   ctx.font = `${20 * D}px sans-serif`;
   ctx.fillStyle = '#0ea5e9';
   ctx.textAlign = 'right';
-  ctx.fillText(subLabelCn, W - PAD, 80 * D);
+  ctx.fillText(subLabelCn, W - PAD, HEADER_CN_Y);
 
   ctx.font = `${18 * D}px sans-serif`;
-  ctx.fillText(subLabelEn, W - PAD, 110 * D);
+  ctx.fillText(subLabelEn, W - PAD, HEADER_EN_Y);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 
@@ -228,12 +229,12 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
     ctx.fillStyle = textColor;
     ctx.font = `${VALUE_SIZE}px sans-serif`;
-    ctx.fillText(cnValue, VALUE_X, y);
+    ctx.fillText(cnValue, PAD + 150 * D, y);
 
     if (cnValue !== enValue) {
       ctx.fillStyle = enTextColor;
       ctx.font = `${EN_VALUE_SIZE}px sans-serif`;
-      ctx.fillText(enValue, VALUE_X, y + 24 * D);
+      ctx.fillText(enValue, PAD + 150 * D, y + 24 * D);
     }
   }
 
@@ -252,11 +253,11 @@ export function renderTicketToCanvas(p: TicketParams): void {
     const priceValue = p.ticketPrice !== undefined
       ? `${currency.symbol}${p.ticketPrice.toFixed(2)}${currency.cnUnit ? `/${p.ticketPrice.toFixed(2)}${currency.cnUnit}` : ''}`
       : '';
-    ctx.fillText(priceValue, VALUE_X, y);
+    ctx.fillText(priceValue, PAD + 150 * D, y);
 
     if (hasFee) {
-      const feeLabelX = W - PAD - 150 * D;
-      
+      const feeLabelX = W - PAD - 180 * D;
+
       ctx.fillStyle = LABEL_COLOR;
       ctx.font = `${LABEL_SIZE}px sans-serif`;
       ctx.fillText('手续费', feeLabelX, y);
@@ -287,7 +288,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
     ctx.fillStyle = VALUE_COLOR;
     ctx.font = `${VALUE_SIZE}px sans-serif`;
     const totalValue = `${currency.symbol}${totalAmount.toFixed(2)}${currency.cnUnit ? `/${totalAmount.toFixed(2)}${currency.cnUnit}` : ''}${mixedRmbInfo}`;
-    ctx.fillText(totalValue, VALUE_X, y);
+    ctx.fillText(totalValue, PAD + 150 * D, y);
   }
 
   // ── Data rows ─────────────────────────────────────────────────────────
