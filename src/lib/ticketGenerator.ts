@@ -168,7 +168,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
   const totalDataH = rowDefs.reduce((sum, r) => sum + rowHeight(r), 0);
   const perfY      = DATA_Y0 + totalDataH + 12 * D;
   const qrTopY     = perfY + 24 * D;
-  const FOOTER_H   = 260 * D;
+  const FOOTER_H   = 280 * D;
   const H          = qrTopY + QR_SIZE + FOOTER_H;
 
   p.canvas.width  = W;
@@ -192,20 +192,19 @@ export function renderTicketToCanvas(p: TicketParams): void {
   let badgeY = 22 * D;
 
   function drawBadge(label: string, color: string) {
-    const textWidth = ctx.measureText(label).width;
-    const BW = Math.max(72 * D, textWidth + 32 * D);
-    const BH = 40 * D;
+    const BW = 120 * D;
+    const BH = 48 * D;
     const BX = W - PAD - BW;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(BX, badgeY, BW, BH, 8 * D);
+    ctx.roundRect(BX, badgeY, BW, BH, 10 * D);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${22 * D}px sans-serif`;
+    ctx.font = `bold ${24 * D}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(label, BX + BW / 2, badgeY + 27 * D);
+    ctx.fillText(label, BX + BW / 2, badgeY + 32 * D);
     ctx.textAlign = 'left';
-    badgeY += BH + 6 * D;
+    badgeY += BH + 8 * D;
   }
 
   if (p.isReprint)       drawBadge('补打小票', '#dc2626');
@@ -345,19 +344,19 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.font = `${22 * D}px sans-serif`;
   ctx.fillText('Visit Lanke Group Official Website for details', W / 2, fBase + 144 * D);
 
-  // URL — with proper spacing
+  // URL — with proper spacing (8-10px margin top/bottom)
   ctx.fillStyle = '#0284c7';
   ctx.font = `${24 * D}px sans-serif`;
-  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 174 * D);
+  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 182 * D);
 
   // Copyright line — Chinese
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 206 * D);
+  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 218 * D);
   // Copyright line — English
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 232 * D);
+  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 244 * D);
 
   ctx.textAlign = 'left';
 }

@@ -382,7 +382,7 @@ function UserOrdersPage({
     const reprintCount = (order as any).reprint_count ?? 0;
     const nextCount = reprintCount + 1;
     if (nextCount >= 2) {
-      if (!window.confirm(`本次为第 ${nextCount} 次补打，是否继续？`)) {
+      if (!window.confirm(`当前是第 ${nextCount} 次补打，是否继续？`)) {
         return;
       }
     }
@@ -391,8 +391,15 @@ function UserOrdersPage({
     const canvas = printCanvasRef.current;
     if (!canvas) return;
     const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
-    const { data: reprintCount } = await supabase.rpc('admin_increment_reprint_count', { p_registration_id: order.id });
-    const isReprint = typeof reprintCount === 'number' && reprintCount > 1;
+    
+    // Frontend immediate update: increment reprint_count locally
+    const newReprintCount = reprintCount + 1;
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, reprint_count: newReprintCount } as any : o));
+    
+    // Backend increment (async, don't wait)
+    supabase.rpc('admin_increment_reprint_count', { p_registration_id: order.id }).catch(() => {});
+    
+    const isReprint = newReprintCount > 1;
     const s = order.sessions as any;
     renderTicketToCanvas({
       canvas, qrEl,

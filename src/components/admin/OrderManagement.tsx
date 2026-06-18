@@ -125,7 +125,7 @@ function RegistrationsList() {
     const reprintCount = (reg as any).reprint_count ?? 0;
     const nextCount = reprintCount + 1;
     if (nextCount >= 2) {
-      if (!window.confirm(`本次为第 ${nextCount} 次补打，是否继续？`)) {
+      if (!window.confirm(`当前是第 ${nextCount} 次补打，是否继续？`)) {
         return;
       }
     }
@@ -142,18 +142,25 @@ function RegistrationsList() {
     setPrintingReg(reg);
     await new Promise(resolve => setTimeout(resolve, 150));
 
-    // Write service_fee, paid_at, printed_at to DB
-    await supabase.from('registrations').update({
+    // Write service_fee, paid_at, printed_at to DB (async, don't wait)
+    supabase.from('registrations').update({
       service_fee: result.serviceFee,
       paid_at: result.paidAt,
       printed_at: result.printedAt,
-    }).eq('id', reg.id);
+    }).eq('id', reg.id).catch(() => {});
+
+    // Frontend immediate update: increment reprint_count locally
+    const currentReprintCount = (reg as any).reprint_count ?? 0;
+    const newReprintCount = currentReprintCount + 1;
+    setRegs(prev => prev.map(r => r.id === reg.id ? { ...r, reprint_count: newReprintCount } as any : r));
+
+    // Backend increment (async, don't wait)
+    supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id }).catch(() => {});
 
     const canvas = printCanvasRef.current;
     if (!canvas) return;
     const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
-    const { data: reprintCount } = await supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id });
-    const isReprint = typeof reprintCount === 'number' && reprintCount > 1;
+    const isReprint = newReprintCount > 1;
     const s = reg.sessions as any;
     renderTicketToCanvas({
       canvas, qrEl,
