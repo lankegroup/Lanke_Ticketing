@@ -57,38 +57,35 @@ function seatToEnglish(seat: string): string {
 
 export function renderTicketToCanvas(p: TicketParams): void {
   const D = 2;
+  const W = 651 * D;
+  const PAD = 34 * D;
+  const QR_SIZE = 260 * D;
+  const VALUE_X = PAD + 150 * D;
 
-  const W             = 651 * D;
-  const PAD           = 34  * D;
-  const QR_SIZE       = 260 * D;
-  const VALUE_X       = PAD + 150 * D;
-
-  const LABEL_SIZE    = 22 * D;
+  const LABEL_SIZE = 22 * D;
   const EN_LABEL_SIZE = 22 * D;
-  const VALUE_SIZE    = 26.6 * D;
-  const EN_VALUE_SIZE = 24.7 * D;
+  const VALUE_SIZE = 28 * D;
+  const EN_VALUE_SIZE = 26 * D;
+  const ROW_HEIGHT = 72 * D;
 
-  const ROW_GAP       = 68 * D;
-
-  const LABEL_COLOR    = '#5c4a3a';
+  const LABEL_COLOR = '#5c4a3a';
   const LABEL_COLOR_EN = '#9b8b7b';
-  const VALUE_COLOR    = '#0f172a';
+  const VALUE_COLOR = '#0f172a';
   const VALUE_COLOR_EN = '#374151';
 
-  // ── Pre-compute values ────────────────────────────────────────────────
   const activityTimeCn = `${p.sessionDate} ${p.startTime.slice(0, 5)} – ${p.endTime.slice(0, 5)}`;
   const activityTimeEn = activityTimeCn;
 
   const verifStart = p.verificationStart ? p.verificationStart.slice(0, 5) : '';
-  const verifEnd   = p.verificationEnd   ? p.verificationEnd.slice(0, 5) : '';
+  const verifEnd = p.verificationEnd ? p.verificationEnd.slice(0, 5) : '';
   const verifRange = verifStart && verifEnd
     ? `${p.sessionDate} ${verifStart} – ${verifEnd}`
     : '';
 
-  const nameEn      = toCnPinyin(p.name);
-  const operatorCn  = `前台客服 (工号: ${p.operatorName})`;
-  const operatorEn  = `Front Desk Service (Staff ID: ${p.operatorName})`;
-  const seatEn      = p.seatName ? seatToEnglish(p.seatName) : '';
+  const nameEn = toCnPinyin(p.name);
+  const operatorCn = `前台客服 (工号: ${p.operatorName})`;
+  const operatorEn = `Front Desk Service (Staff ID: ${p.operatorName})`;
+  const seatEn = p.seatName ? seatToEnglish(p.seatName) : '';
   const sessionNameEn = toCnPinyin(p.sessionName);
 
   const ticketTypeCn: Record<string, string> = { adult: '成人票', child: '儿童票', concession: '优待票' };
@@ -114,7 +111,6 @@ export function renderTicketToCanvas(p: TicketParams): void {
     }
   };
   const currency = getCurrencyInfo();
-
   const totalAmount = (p.ticketPrice ?? 0) + (p.serviceFee ?? 0);
   const mixedRmbInfo = paymentMethod === 'mixed' && p.rmbAmount !== undefined && p.rmbAmount > 0
     ? ` (人民币支付 ¥${p.rmbAmount.toFixed(2)})`
@@ -124,20 +120,24 @@ export function renderTicketToCanvas(p: TicketParams): void {
   const hasFee = p.serviceFee !== undefined && p.serviceFee > 0;
   const hasTotal = hasPrice;
 
-  const BADGE_TOP_Y   = 22 * D;
-  const SESSION_NAME_Y = 76 * D;
-  const DIVIDER_Y     = SESSION_NAME_Y + 36 * D;
-  const DATA_Y0       = DIVIDER_Y + 20 * D;
+  const rowCount = 6 + 
+    (verifRange ? 1 : 0) + 
+    (p.seatName ? 1 : 0) + 
+    (p.ticketType ? 1 : 0) + 
+    (hasPrice ? 1 : 0) + 
+    (hasTotal ? 1 : 0) + 
+    (p.paidAt ? 1 : 0) + 
+    (p.printedAt ? 1 : 0);
 
-  const baseRows = 6 + (verifRange ? 1 : 0) + (p.seatName ? 1 : 0) + (p.ticketType ? 1 : 0) + (p.paidAt ? 1 : 0) + (p.printedAt ? 1 : 0);
-  const extraRows = (hasPrice ? 1 : 0) + (hasFee ? 0 : 0) + (hasTotal ? 1 : 0);
-  const totalDataH = (baseRows + extraRows) * ROW_GAP;
-  const perfY      = DATA_Y0 + totalDataH - ROW_GAP + 10 * D;
-  const qrTopY     = perfY + 20 * D;
-  const FOOTER_H   = 260 * D;
-  const H          = qrTopY + QR_SIZE + FOOTER_H;
+  const HEADER_H = 120 * D;
+  const DATA_START_Y = HEADER_H + 20 * D;
+  const DATA_H = rowCount * ROW_HEIGHT;
+  const PERF_Y = DATA_START_Y + DATA_H;
+  const QR_Y = PERF_Y + 30 * D;
+  const FOOTER_H = 260 * D;
+  const H = QR_Y + QR_SIZE + FOOTER_H;
 
-  p.canvas.width  = W;
+  p.canvas.width = W;
   p.canvas.height = H;
   const ctx = p.canvas.getContext('2d')!;
 
@@ -155,8 +155,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.strokeRect(1, 1, W - 2, H - 2);
 
   // ── Badges ───────────────────────────────────────────────────────────
-  let badgeY = BADGE_TOP_Y;
-
+  let badgeY = 22 * D;
   function drawBadge(label: string, color: string) {
     ctx.font = `bold ${26 * D}px sans-serif`;
     const textWidth = ctx.measureText(label).width;
@@ -177,69 +176,38 @@ export function renderTicketToCanvas(p: TicketParams): void {
     ctx.textAlign = 'left';
     badgeY += BH + 6 * D;
   }
-
-  if (p.isReprint)       drawBadge('补打小票', '#dc2626');
+  if (p.isReprint) drawBadge('补打小票', '#dc2626');
   if (p.isSupplementary) drawBadge('补票', '#f97316');
 
   // ── Header ───────────────────────────────────────────────────────────
-  const SESSION_NAME_SIZE = 36 * D;
-  const SUB_LABEL_SIZE = 20 * D;
-  
-  ctx.font = `bold ${SESSION_NAME_SIZE}px sans-serif`;
-  const sessionNameWidth = ctx.measureText(p.sessionName).width;
-  
-  ctx.font = `${SUB_LABEL_SIZE}px sans-serif`;
-  const subLabelWidth = ctx.measureText(subLabelCn).width;
-  
-  const availableWidth = W - PAD * 2 - sessionNameWidth - subLabelWidth - 24 * D;
-  
-  ctx.textBaseline = 'bottom';
-  
-  if (availableWidth < 0) {
-    const maxSessionWidth = W - PAD * 2 - subLabelWidth - 48 * D;
-    ctx.font = `bold ${SESSION_NAME_SIZE}px sans-serif`;
-    let displayName = p.sessionName;
-    while (ctx.measureText(displayName + '...').width > maxSessionWidth && displayName.length > 4) {
-      displayName = displayName.slice(0, -1);
-    }
-    if (displayName !== p.sessionName) displayName += '...';
-    ctx.fillStyle = '#0f172a';
-    ctx.fillText(displayName, PAD, SESSION_NAME_Y);
-  } else {
-    ctx.fillStyle = '#0f172a';
-    ctx.font = `bold ${SESSION_NAME_SIZE}px sans-serif`;
-    ctx.fillText(p.sessionName, PAD, SESSION_NAME_Y);
-  }
-
-  ctx.fillStyle = '#0ea5e9';
-  ctx.font = `${SUB_LABEL_SIZE}px sans-serif`;
-  ctx.textAlign = 'right';
-  ctx.fillText(subLabelCn, W - PAD, SESSION_NAME_Y);
-  ctx.textAlign = 'left';
-  
-  ctx.textBaseline = 'alphabetic';
+  ctx.font = `bold ${36 * D}px sans-serif`;
+  ctx.fillStyle = '#0f172a';
+  ctx.fillText(p.sessionName, PAD, 76 * D);
 
   ctx.font = `bold ${24 * D}px sans-serif`;
-  ctx.fillStyle = '#0f172a';
-  ctx.fillText(sessionNameEn, PAD, SESSION_NAME_Y + 28 * D);
+  ctx.fillText(sessionNameEn, PAD, 104 * D);
 
-  ctx.font = `${18 * D}px sans-serif`;
+  ctx.font = `${20 * D}px sans-serif`;
   ctx.fillStyle = '#0ea5e9';
   ctx.textAlign = 'right';
-  ctx.fillText(subLabelEn, W - PAD, SESSION_NAME_Y + 28 * D);
+  ctx.fillText(subLabelCn, W - PAD, 76 * D);
+
+  ctx.font = `${18 * D}px sans-serif`;
+  ctx.fillText(subLabelEn, W - PAD, 104 * D);
   ctx.textAlign = 'left';
 
+  // ── Divider ──────────────────────────────────────────────────────────
   ctx.setLineDash([12 * D, 4 * D]);
   ctx.strokeStyle = '#1f2937';
   ctx.lineWidth = 4 * D;
   ctx.beginPath();
-  ctx.moveTo(PAD, DIVIDER_Y);
-  ctx.lineTo(W - PAD, DIVIDER_Y);
+  ctx.moveTo(PAD, HEADER_H);
+  ctx.lineTo(W - PAD, HEADER_H);
   ctx.stroke();
   ctx.setLineDash([]);
 
   // ── Draw standard row ────────────────────────────────────────────────
-  function drawStandardRow(cnLabel: string, enLabel: string, cnValue: string, enValue: string, y: number, color?: string) {
+  function drawRow(cnLabel: string, enLabel: string, cnValue: string, enValue: string, y: number, color?: string) {
     const textColor = color ?? VALUE_COLOR;
     const enTextColor = color === undefined ? VALUE_COLOR_EN : color;
 
@@ -263,38 +231,38 @@ export function renderTicketToCanvas(p: TicketParams): void {
   }
 
   // ── Draw price/fee row ────────────────────────────────────────────────
-  function drawPriceRow(y: number) {
-    const priceY = y;
-    
+  function drawPriceFeeRow(y: number) {
     ctx.fillStyle = LABEL_COLOR;
     ctx.font = `${LABEL_SIZE}px sans-serif`;
-    ctx.fillText('票价', PAD, priceY);
+    ctx.fillText('票价', PAD, y);
 
     ctx.fillStyle = LABEL_COLOR_EN;
     ctx.font = `${EN_LABEL_SIZE}px sans-serif`;
-    ctx.fillText('Ticket Price', PAD, priceY + 24 * D);
+    ctx.fillText('Ticket Price', PAD, y + 24 * D);
 
     ctx.fillStyle = VALUE_COLOR;
     ctx.font = `${VALUE_SIZE}px sans-serif`;
     const priceValue = p.ticketPrice !== undefined
       ? `${currency.symbol}${p.ticketPrice.toFixed(2)}${currency.cnUnit ? `/${p.ticketPrice.toFixed(2)}${currency.cnUnit}` : ''}`
       : '';
-    ctx.fillText(priceValue, VALUE_X, priceY);
+    ctx.fillText(priceValue, VALUE_X, y);
 
     if (hasFee) {
+      const feeLabelX = W - PAD - 120 * D;
+      
       ctx.fillStyle = LABEL_COLOR;
       ctx.font = `${LABEL_SIZE}px sans-serif`;
-      ctx.textAlign = 'right';
-      ctx.fillText('手续费', W - PAD, priceY);
+      ctx.fillText('手续费', feeLabelX, y);
 
       ctx.fillStyle = LABEL_COLOR_EN;
       ctx.font = `${EN_LABEL_SIZE}px sans-serif`;
-      ctx.fillText('Service Fee', W - PAD, priceY + 24 * D);
+      ctx.fillText('Service Fee', feeLabelX, y + 24 * D);
 
       ctx.fillStyle = VALUE_COLOR;
       ctx.font = `${VALUE_SIZE}px sans-serif`;
       const feeValue = `${currency.symbol}${p.serviceFee!.toFixed(2)}${currency.cnUnit ? `/${p.serviceFee!.toFixed(2)}${currency.cnUnit}` : ''}`;
-      ctx.fillText(feeValue, W - PAD, priceY);
+      ctx.textAlign = 'right';
+      ctx.fillText(feeValue, W - PAD, y);
       ctx.textAlign = 'left';
     }
   }
@@ -316,84 +284,81 @@ export function renderTicketToCanvas(p: TicketParams): void {
   }
 
   // ── Data rows ─────────────────────────────────────────────────────────
-  let iy = DATA_Y0;
+  let iy = DATA_START_Y;
 
-  drawStandardRow('活动时间', 'Event Time', activityTimeCn, activityTimeEn, iy);
-  iy += ROW_GAP;
+  drawRow('活动时间', 'Event Time', activityTimeCn, activityTimeEn, iy);
+  iy += ROW_HEIGHT;
 
   if (verifRange) {
-    drawStandardRow('核销时间', 'Check-in Time', verifRange, verifRange, iy);
-    iy += ROW_GAP;
+    drawRow('核销时间', 'Check-in Time', verifRange, verifRange, iy);
+    iy += ROW_HEIGHT;
   }
 
-  drawStandardRow('用户名', 'Username', p.name, nameEn, iy);
-  iy += ROW_GAP;
+  drawRow('用户名', 'Username', p.name, nameEn, iy);
+  iy += ROW_HEIGHT;
 
   if (p.seatName) {
-    drawStandardRow('座位', 'Seat', p.seatName, seatEn, iy);
-    iy += ROW_GAP;
+    drawRow('座位', 'Seat', p.seatName, seatEn, iy);
+    iy += ROW_HEIGHT;
   }
 
   if (p.ticketType) {
-    drawStandardRow('票种', 'Ticket Type', ticketTypeCn[p.ticketType], ticketTypeEn[p.ticketType], iy, ticketTypeColor[p.ticketType]);
-    iy += ROW_GAP;
+    drawRow('票种', 'Ticket Type', ticketTypeCn[p.ticketType], ticketTypeEn[p.ticketType], iy, ticketTypeColor[p.ticketType]);
+    iy += ROW_HEIGHT;
   }
 
-  drawStandardRow('操作员', 'Operator', operatorCn, operatorEn, iy);
-  iy += ROW_GAP;
+  drawRow('操作员', 'Operator', operatorCn, operatorEn, iy);
+  iy += ROW_HEIGHT;
 
-  drawStandardRow('下单时间', 'Order Time', p.orderTime, p.orderTime, iy);
-  iy += ROW_GAP;
+  drawRow('下单时间', 'Order Time', p.orderTime, p.orderTime, iy);
+  iy += ROW_HEIGHT;
 
   if (hasPrice) {
-    drawPriceRow(iy);
-    iy += ROW_GAP;
+    drawPriceFeeRow(iy);
+    iy += ROW_HEIGHT;
   }
 
   if (hasTotal) {
     drawTotalRow(iy);
-    iy += ROW_GAP;
+    iy += ROW_HEIGHT;
   }
 
   if (p.paidAt) {
-    drawStandardRow('付款时间', 'Payment Time', p.paidAt, p.paidAt, iy);
-    iy += ROW_GAP;
+    drawRow('付款时间', 'Payment Time', p.paidAt, p.paidAt, iy);
+    iy += ROW_HEIGHT;
   }
 
   if (p.printedAt) {
-    drawStandardRow('打印时间', 'Print Time', p.printedAt, p.printedAt, iy);
-    iy += ROW_GAP;
+    drawRow('打印时间', 'Print Time', p.printedAt, p.printedAt, iy);
+    iy += ROW_HEIGHT;
   }
 
-  iy -= ROW_GAP;
-  iy += 12 * D;
-
+  // ── Perforation ──────────────────────────────────────────────────────
   ctx.setLineDash([12 * D, 4 * D]);
   ctx.strokeStyle = '#1f2937';
   ctx.lineWidth = 4 * D;
   ctx.beginPath();
-  ctx.moveTo(PAD, iy);
-  ctx.lineTo(W - PAD, iy);
+  ctx.moveTo(PAD, PERF_Y);
+  ctx.lineTo(W - PAD, PERF_Y);
   ctx.stroke();
   ctx.setLineDash([]);
 
   // ── QR code ──────────────────────────────────────────────────────────
-  const qrY = iy + 24 * D;
   const qrX = (W - QR_SIZE) / 2;
   ctx.fillStyle = '#f8fafc';
   ctx.beginPath();
-  ctx.roundRect(qrX - 12 * D, qrY - 12 * D, QR_SIZE + 24 * D, QR_SIZE + 24 * D, 14 * D);
+  ctx.roundRect(qrX - 12 * D, QR_Y - 12 * D, QR_SIZE + 24 * D, QR_SIZE + 24 * D, 14 * D);
   ctx.fill();
   if (p.qrEl) {
-    ctx.drawImage(p.qrEl, qrX, qrY, QR_SIZE, QR_SIZE);
+    ctx.drawImage(p.qrEl, qrX, QR_Y, QR_SIZE, QR_SIZE);
   } else {
     ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(qrX, qrY, QR_SIZE, QR_SIZE);
+    ctx.fillRect(qrX, QR_Y, QR_SIZE, QR_SIZE);
   }
 
   // ── Footer ────────────────────────────────────────────────────────────
   ctx.textAlign = 'center';
-  const fBase = qrY + QR_SIZE;
+  const fBase = QR_Y + QR_SIZE;
 
   ctx.fillStyle = '#0369a1';
   ctx.font = `bold ${28 * D}px monospace`;
@@ -422,15 +387,5 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.textAlign = 'left';
 }
 
-/** Format a JS Date to "2026-06-14 22:46:18" */
 export function formatOrderTime(d = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-
-export function downloadTicket(canvas: HTMLCanvasElement, ticketCode: string): void {
-  const link = document.createElement('a');
-  link.download = `ticket-${ticketCode}.png`;
-  link.href = canvas.toDataURL('image/png');
-  link.click();
-}
+  const pad =
