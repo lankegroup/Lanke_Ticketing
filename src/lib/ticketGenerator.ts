@@ -168,7 +168,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
   const totalDataH = rowDefs.reduce((sum, r) => sum + rowHeight(r), 0);
   const perfY      = DATA_Y0 + totalDataH + 12 * D;
   const qrTopY     = perfY + 24 * D;
-  const FOOTER_H   = 360 * D;
+  const FOOTER_H   = 260 * D;
   const H          = qrTopY + QR_SIZE + FOOTER_H;
 
   p.canvas.width  = W;
@@ -326,36 +326,36 @@ export function renderTicketToCanvas(p: TicketParams): void {
   // CN instruction
   ctx.fillStyle = '#78716c';
   ctx.font = `${20 * D}px sans-serif`;
-  ctx.fillText('入场时出示二维码供工作人员核销', W / 2, fBase + 72 * D);
+  ctx.fillText('入场时出示二维码供工作人员核销', W / 2, fBase + 68 * D);
 
   // EN instruction
   ctx.fillStyle = '#a8a29e';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Present QR code at entrance for staff verification', W / 2, fBase + 98 * D);
+  ctx.fillText('Present QR code at entrance for staff verification', W / 2, fBase + 92 * D);
 
   // CN website label
   ctx.fillStyle = '#78716c';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('详情登录兰克集团票务官网', W / 2, fBase + 134 * D);
+  ctx.fillText('详情登录兰克集团票务官网', W / 2, fBase + 122 * D);
 
   // EN website label
   ctx.fillStyle = '#a8a29e';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Visit Lanke Group Official Website for details', W / 2, fBase + 156 * D);
+  ctx.fillText('Visit Lanke Group Official Website for details', W / 2, fBase + 144 * D);
 
-  // URL
+  // URL — tighter spacing
   ctx.fillStyle = '#0284c7';
-  ctx.font = `${26 * D}px sans-serif`;
-  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 178 * D);
+  ctx.font = `${24 * D}px sans-serif`;
+  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 166 * D);
 
   // Copyright line — Chinese
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 208 * D);
+  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 192 * D);
   // Copyright line — English
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 234 * D);
+  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 218 * D);
 
   ctx.textAlign = 'left';
 }
