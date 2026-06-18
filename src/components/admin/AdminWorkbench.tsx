@@ -797,6 +797,8 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
       serviceFee:        printResult?.serviceFee,
       paidAt:            printResult?.paidAt,
       printedAt:         printResult?.printedAt,
+      paymentMethod:     paymentMethod,
+      rmbAmount:         parseFloat(rmbAmount || '0'),
     });
     downloadTicket(canvas, ticketCode);
   }

@@ -585,6 +585,7 @@ function UserOrdersPage({
         isSupplementary:   order.is_supplementary,
         isReprint,
         orderStatus:       order.status,
+        paymentMethod:     (order as any).payment_method as 'rmb' | 'lcoin' | 'mixed' || 'rmb',
       });
       downloadTicket(canvas, order.ticket_code);
     } catch (err) {

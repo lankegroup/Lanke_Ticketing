@@ -207,6 +207,7 @@ function RegistrationsList() {
         serviceFee:        result.serviceFee,
         paidAt:            result.paidAt,
         printedAt:         result.printedAt,
+        paymentMethod:     (reg as any).payment_method as 'rmb' | 'lcoin' | 'mixed' || 'rmb',
       });
 
       downloadTicket(canvas, reg.ticket_code);
