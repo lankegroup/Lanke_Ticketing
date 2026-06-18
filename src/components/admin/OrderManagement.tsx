@@ -172,35 +172,51 @@ function RegistrationsList() {
 
       const canvas = printCanvasRef.current;
       if (!canvas) {
+        console.error('Print error: canvas is null');
         showToast('打印失败：画布未就绪', 'error');
         return;
       }
+
       const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
       const isReprint = newReprintCount > 1;
       const s = reg.sessions as any;
-      renderTicketToCanvas({
-        canvas, qrEl,
-        ticketCode:        reg.ticket_code,
-        sessionName:       s?.name ?? '—',
-        sessionDate:       s?.session_date ?? '—',
-        startTime:         s?.start_time ?? '00:00',
-        endTime:           s?.end_time ?? '00:00',
-        verificationStart: s?.verification_start,
-        verificationEnd:   s?.verification_end,
-        name:              reg.name,
-        seatName:          (reg as any).seats?.seat_name,
-        ticketType:        reg.ticket_type,
-        operatorName:      '001',
-        orderTime:         formatOrderTime(new Date(reg.created_at)),
-        isSupplementary:   reg.is_supplementary,
-        isReprint,
-        orderStatus:       getDisplayStatus(reg),
-        ticketPrice:       s?.ticket_price,
-        serviceFee:        result.serviceFee,
-        paidAt:            result.paidAt,
-        printedAt:         result.printedAt,
-      });
-      downloadTicket(canvas, reg.ticket_code);
+
+      try {
+        renderTicketToCanvas({
+          canvas, qrEl,
+          ticketCode:        reg.ticket_code,
+          sessionName:       s?.name ?? '—',
+          sessionDate:       s?.session_date ?? '—',
+          startTime:         s?.start_time ?? '00:00',
+          endTime:           s?.end_time ?? '00:00',
+          verificationStart: s?.verification_start,
+          verificationEnd:   s?.verification_end,
+          name:              reg.name,
+          seatName:          (reg as any).seats?.seat_name,
+          ticketType:        reg.ticket_type,
+          operatorName:      '001',
+          orderTime:         formatOrderTime(new Date(reg.created_at)),
+          isSupplementary:   reg.is_supplementary,
+          isReprint,
+          orderStatus:       getDisplayStatus(reg),
+          ticketPrice:       s?.ticket_price,
+          serviceFee:        result.serviceFee,
+          paidAt:            result.paidAt,
+          printedAt:         result.printedAt,
+        });
+      } catch (renderErr) {
+        console.error('renderTicketToCanvas error:', renderErr);
+        showToast('打印失败：票面生成错误', 'error');
+        return;
+      }
+
+      try {
+        downloadTicket(canvas, reg.ticket_code);
+      } catch (downloadErr) {
+        console.error('downloadTicket error:', downloadErr);
+        showToast('打印失败：下载失败', 'error');
+        return;
+      }
     } catch (err) {
       console.error('Print error:', err);
       showToast('打印失败，请重试', 'error');
