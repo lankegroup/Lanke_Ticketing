@@ -388,4 +388,13 @@ export function renderTicketToCanvas(p: TicketParams): void {
 }
 
 export function formatOrderTime(d = new Date()): string {
-  const pad =
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+export function downloadTicket(canvas: HTMLCanvasElement, ticketCode: string): void {
+  const link = document.createElement('a');
+  link.download = `ticket-${ticketCode}.png`;
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+}
