@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, Registration, FeedbackTicket, formatSeatName, SeatMapRow, Session, getDisplayStatus } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Ticket, LogOut, LogIn, ChevronRight, Settings, MessageSquare, KeyRound, User, X, Send, Pencil, Headphones, Trash2, PackageOpen, RefreshCw, Bell, Coins } from 'lucide-react';
+import { Ticket, LogOut, LogIn, ChevronRight, Settings, MessageSquare, KeyRound, User, X, Send, Pencil, Headphones, Trash2, PackageOpen, RefreshCw, Coins, Package, History, Info } from 'lucide-react';
 import QRCodeView from './QRCodeView';
 import LoginModal from './LoginModal';
 import Toast from '../Toast';
@@ -10,7 +10,7 @@ import ConfirmDialog from '../ConfirmDialog';
 import ChatView from './ChatView';
 import SeatMap from '../SeatMap';
 
-type SubView = 'main' | 'feedback' | 'change_password' | 'edit_profile' | 'chat' | 'orders' | 'balance' | 'recharge_guide';
+type SubView = 'main' | 'feedback' | 'change_password' | 'edit_profile' | 'chat' | 'orders' | 'balance';
 
 export default function MyPage() {
   const { t, i18n } = useTranslation();
@@ -160,11 +160,7 @@ export default function MyPage() {
   }
 
   if (subView === 'balance') {
-    return <BalanceView balance={balance} onBack={() => setSubView('main')} onRecharge={() => setSubView('recharge_guide')} />;
-  }
-
-  if (subView === 'recharge_guide') {
-    return <RechargeGuideView onBack={() => setSubView('balance')} />;
+    return <BalanceView balance={balance} onBack={() => setSubView('main')} />;
   }
 
   if (subView === 'change_password') {
@@ -1005,43 +1001,66 @@ function ChangePasswordView({ onBack }: { onBack: () => void }) {
   );
 }
 
-function BalanceView({ balance, onBack, onRecharge }: { balance: string; onBack: () => void; onRecharge: () => void }) {
+function BalanceView({ balance, onBack }: { balance: string; onBack: () => void }) {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const isEn = i18n.language === 'en';
+  const [activeTab, setActiveTab] = useState<'packages' | 'transactions' | 'guide'>('packages');
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [rechargeDescription, setRechargeDescription] = useState('');
+  const [packages, setPackages] = useState<any[]>([]);
+  const [loadingTxs, setLoadingTxs] = useState(true);
+  const [loadingPkgs, setLoadingPkgs] = useState(true);
+  const [rechargeSettings, setRechargeSettings] = useState<{ banner_image: string; description: string; enabled: boolean } | null>(null);
+  const [loadingGuide, setLoadingGuide] = useState(true);
 
   useEffect(() => {
+    fetchPackages();
     fetchTransactions();
-    fetchConfig();
+    fetchGuide();
   }, []);
 
-  async function fetchTransactions() {
-    setLoading(true);
+  async function fetchPackages() {
+    setLoadingPkgs(true);
     try {
-      const { data } = await supabase
+      const { data } = await supabase.from('lcoin_recharge_packages').select('*').eq('is_active', true).order('sort_order');
+      setPackages(data || []);
+    } catch {
+      setPackages([]);
+    }
+    setLoadingPkgs(false);
+  }
+
+  async function fetchTransactions() {
+    setLoadingTxs(true);
+    try {
+      const { data, error } = await supabase
         .from('lcoin_transactions')
         .select('*')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false })
-        .limit(20);
-      setTransactions(data || []);
-    } catch {
+        .limit(100);
+      if (error) {
+        console.error('fetchTransactions error:', error);
+        setTransactions([]);
+      } else {
+        setTransactions(data || []);
+      }
+    } catch (err) {
+      console.error('fetchTransactions exception:', err);
       setTransactions([]);
     }
-    setLoading(false);
+    setLoadingTxs(false);
   }
 
-  async function fetchConfig() {
+  async function fetchGuide() {
+    setLoadingGuide(true);
     try {
-      const { data } = await supabase.from('lcoin_config').select('value').eq('key', 'recharge_description');
-      if (data && data.length > 0) {
-        setRechargeDescription(data[0].value || '');
-      }
+      const { data } = await supabase.from('recharge_settings').select('banner_image, description, enabled').single();
+      setRechargeSettings(data || { banner_image: '', description: '', enabled: true });
     } catch {
-      setRechargeDescription('');
+      setRechargeSettings({ banner_image: '', description: '', enabled: true });
     }
+    setLoadingGuide(false);
   }
 
   const formatType = (type: string) => {
@@ -1057,99 +1076,16 @@ function BalanceView({ balance, onBack, onRecharge }: { balance: string; onBack:
     }
   };
 
-  const formatAmount = (direction: string, amount: string) => {
+  const formatAmount = (direction: string, amount: string | number) => {
     const prefix = direction === 'in' ? '+' : '-';
-    return `${prefix}${amount} ${isEn ? 'Lanke Coins' : '兰克币'}`;
+    return `${prefix}${amount} ${isEn ? 'LC' : '兰克币'}`;
   };
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-gradient-to-r from-amber-500 to-amber-400 text-white px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
-        <button onClick={onBack} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
-          <X size={18} />
-        </button>
-        <span className="font-semibold">{isEn ? 'Lanke Coins Balance' : '兰克币余额'}</span>
-      </div>
-
-      <div className="p-4">
-        <div className="bg-gradient-to-br from-amber-500 to-amber-400 rounded-2xl p-6 text-white text-center">
-          <p className="text-white/80 text-sm mb-1">{isEn ? 'Current Balance' : '当前余额'}</p>
-          <p className="text-4xl font-bold">{balance}</p>
-          <p className="text-white/70 text-xs mt-1">{isEn ? 'Lanke Coins' : '兰克币'}</p>
-        </div>
-
-        <button
-          onClick={onRecharge}
-          className="w-full mt-4 bg-amber-100 hover:bg-amber-200 text-amber-700 font-semibold py-3 rounded-xl text-sm transition-colors"
-        >
-          {isEn ? 'Recharge Instructions' : '充值说明'}
-        </button>
-
-        <div className="mt-6">
-          <h3 className="font-semibold text-gray-900 mb-3">{isEn ? 'Transaction History' : '交易记录'}</h3>
-          {loading ? (
-            <div className="py-8 text-center text-gray-400 text-sm">{t('loading')}</div>
-          ) : transactions.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-              <Coins size={32} className="text-gray-300 mx-auto mb-2" />
-              <p className="text-gray-400 text-sm">{isEn ? 'No transactions yet' : '暂无交易记录'}</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {transactions.map((tx) => (
-                <div key={tx.id} className="bg-white rounded-xl border border-gray-100 p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-gray-900">{formatType(tx.transaction_type)}</p>
-                    <p className="text-xs text-gray-400">
-                      {tx.created_at ? new Date(tx.created_at).toLocaleString(isEn ? 'en-US' : 'zh-CN') : ''}
-                    </p>
-                  </div>
-                  <p className={`font-semibold ${tx.direction === 'in' ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {formatAmount(tx.direction, tx.amount)}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}</div>
-
-        {rechargeDescription && (
-          <div className="mt-6 bg-white rounded-2xl border border-gray-100 p-5">
-            <h3 className="font-semibold text-gray-900 mb-3">{isEn ? 'Recharge Instructions' : '充值说明'}</h3>
-            <div className="text-sm text-gray-500 leading-relaxed" dangerouslySetInnerHTML={{ __html: rechargeDescription }} />
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function RechargeGuideView({ onBack }: { onBack: () => void }) {
-  const { t, i18n } = useTranslation();
-  const isEn = i18n.language === 'en';
-  const [settings, setSettings] = useState<{ banner_image: string; description: string; enabled: boolean } | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    fetchSettings();
-  }, []);
-
-  async function fetchSettings() {
-    setLoading(true);
-    try {
-      const { data } = await supabase.from('recharge_settings').select('banner_image, description, enabled').single();
-      setSettings(data || { banner_image: '', description: '', enabled: true });
-    } catch {
-      setSettings({ banner_image: '', description: '', enabled: true });
-    }
-    setLoading(false);
-  }
 
   function parseMarkdown(text: string): string {
     let html = text
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
-
     html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
     html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
@@ -1157,67 +1093,171 @@ function RechargeGuideView({ onBack }: { onBack: () => void }) {
     html = html.replace(/(<li>[\s\S]*?<\/li>)/g, '<ul class="list-disc list-inside space-y-1">$1</ul>');
     html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="text-amber-600 underline">$1</a>');
     html = html.replace(/\n/g, '<br/>');
-
     return html;
   }
 
-  const defaultDesc = isEn 
-    ? 'Please contact customer service to confirm your Lanke Coins recharge.' 
+  const defaultDesc = isEn
+    ? 'Please contact customer service to confirm your Lanke Coins recharge.'
     : '如需充值兰克币，请联系客服确认。';
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white px-4 py-3 flex items-center gap-3 sticky top-0 z-10 border-b border-gray-100">
-        <button onClick={onBack} className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors">
-          <X size={18} className="text-gray-600" />
+      <div className="bg-gradient-to-r from-amber-500 to-amber-400 text-white px-4 py-3 flex items-center gap-3 sticky top-0 z-10">
+        <button onClick={onBack} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
+          <X size={18} />
         </button>
-        <span className="font-semibold text-gray-900">{isEn ? 'Recharge Guide' : '充值说明'}</span>
+        <span className="font-semibold">{isEn ? 'Lanke Coins' : '兰克币余额'}</span>
       </div>
 
-      <div className="p-4">
-        {loading ? (
-          <div className="py-8 text-center text-gray-400 text-sm">{t('loading')}</div>
-        ) : !settings?.enabled ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-            <Coins size={40} className="text-gray-300 mx-auto mb-4" />
-            <p className="text-gray-500 text-sm">{isEn ? 'Recharge service is temporarily unavailable.' : '充值服务暂时不可用。'}</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {settings?.banner_image && (
-              <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <img src={settings.banner_image} alt={isEn ? 'Recharge Banner' : '充值宣传'} className="w-full h-48 object-cover" />
+      <div className="p-4 space-y-4">
+        {/* Balance Card */}
+        <div className="bg-gradient-to-br from-amber-500 to-amber-400 rounded-2xl p-6 text-white text-center">
+          <p className="text-white/80 text-sm mb-1">{isEn ? 'Current Balance' : '当前余额'}</p>
+          <p className="text-4xl font-bold">{balance}</p>
+          <p className="text-white/70 text-xs mt-1">{isEn ? 'Lanke Coins' : '兰克币'}</p>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex bg-white rounded-xl border border-gray-100 overflow-hidden">
+          <button
+            onClick={() => setActiveTab('packages')}
+            className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+              activeTab === 'packages' ? 'bg-amber-50 text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Package size={15} /> {isEn ? 'Packages' : '充值套餐'}
+          </button>
+          <button
+            onClick={() => setActiveTab('transactions')}
+            className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+              activeTab === 'transactions' ? 'bg-amber-50 text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <History size={15} /> {isEn ? 'Records' : '交易记录'}
+          </button>
+          <button
+            onClick={() => setActiveTab('guide')}
+            className={`flex-1 py-3 text-sm font-medium flex items-center justify-center gap-1.5 transition-colors ${
+              activeTab === 'guide' ? 'bg-amber-50 text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Info size={15} /> {isEn ? 'Guide' : '充值说明'}
+          </button>
+        </div>
+
+        {/* Tab: Packages */}
+        {activeTab === 'packages' && (
+          <div className="space-y-3">
+            {loadingPkgs ? (
+              <div className="py-8 text-center text-gray-400 text-sm">{t('loading')}</div>
+            ) : packages.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                <Package size={32} className="text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-400 text-sm">{isEn ? 'No packages available' : '暂无充值套餐'}</p>
               </div>
+            ) : (
+              packages.map(pkg => (
+                <div key={pkg.id} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-semibold text-gray-900">{isEn ? (pkg.name_en || pkg.name) : pkg.name}</h4>
+                    <span className="text-lg font-bold text-amber-500">{pkg.lcoin_amount} {isEn ? 'LC' : '兰克币'}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-500">{isEn ? 'Price' : '价格'}：<span className="font-medium text-gray-900">{pkg.price}</span> {isEn ? 'RMB' : '元'}</span>
+                  </div>
+                  {pkg.description && (
+                    <p className="text-xs text-gray-400">{isEn ? (pkg.description_en || pkg.description) : pkg.description}</p>
+                  )}
+                </div>
+              ))
             )}
+          </div>
+        )}
 
-            <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Coins size={16} className="text-amber-500" />
-                </div>
-                <div className="flex-1">
-                  <h4 className="font-semibold text-gray-900 mb-1">{isEn ? 'How to Recharge' : '充值方式'}</h4>
-                  <div className="text-sm text-gray-500 leading-relaxed" dangerouslySetInnerHTML={{ __html: parseMarkdown(settings?.description || defaultDesc) }} />
-                </div>
+        {/* Tab: Transactions */}
+        {activeTab === 'transactions' && (
+          <div className="space-y-3">
+            {loadingTxs ? (
+              <div className="py-8 text-center text-gray-400 text-sm">{t('loading')}</div>
+            ) : transactions.length === 0 ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                <History size={32} className="text-gray-300 mx-auto mb-2" />
+                <p className="text-gray-400 text-sm">{isEn ? 'No transactions yet' : '暂无交易记录'}</p>
               </div>
+            ) : (
+              transactions.map((tx) => (
+                <div key={tx.id} className="bg-white rounded-xl border border-gray-100 p-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      tx.transaction_type === 'recharge' ? 'bg-emerald-100 text-emerald-700' :
+                      tx.transaction_type === 'purchase' ? 'bg-red-100 text-red-700' :
+                      tx.transaction_type === 'refund' ? 'bg-blue-100 text-blue-700' :
+                      tx.transaction_type === 'adjust_add' ? 'bg-purple-100 text-purple-700' :
+                      tx.transaction_type === 'adjust_subtract' ? 'bg-orange-100 text-orange-700' :
+                      'bg-gray-100 text-gray-700'
+                    }`}>
+                      {formatType(tx.transaction_type)}
+                    </span>
+                    <span className={`font-semibold ${tx.direction === 'in' ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {formatAmount(tx.direction, tx.amount)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-gray-400">
+                    <span>{tx.created_at ? new Date(tx.created_at).toLocaleString(isEn ? 'en-US' : 'zh-CN') : ''}</span>
+                  </div>
+                  {tx.description && <p className="text-xs text-gray-500 mt-1">{tx.description}</p>}
+                  <div className="text-xs text-gray-400 mt-1">
+                    {isEn ? 'Balance' : '余额'}：{tx.balance_before} → {tx.balance_after}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                <p className="text-xs text-amber-700 font-medium mb-1">{isEn ? 'Important Notice' : '温馨提示'}</p>
-                <p className="text-xs text-amber-600">
-                  {isEn ? 'Recharge requests are processed manually by our customer service team. Please allow some time for your balance to be updated.' : '充值请求由客服人员人工处理，请耐心等待余额到账。'}
-                </p>
+        {/* Tab: Recharge Guide */}
+        {activeTab === 'guide' && (
+          <div className="space-y-4">
+            {loadingGuide ? (
+              <div className="py-8 text-center text-gray-400 text-sm">{t('loading')}</div>
+            ) : !rechargeSettings?.enabled ? (
+              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
+                <Coins size={40} className="text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500 text-sm">{isEn ? 'Recharge service is temporarily unavailable.' : '充值服务暂时不可用。'}</p>
               </div>
-            </div>
+            ) : (
+              <>
+                {rechargeSettings?.banner_image && (
+                  <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <img src={rechargeSettings.banner_image} alt={isEn ? 'Recharge Banner' : '充值宣传'} className="w-full h-48 object-cover" />
+                  </div>
+                )}
 
-            <button
-              onClick={onBack}
-              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-sm transition-colors"
-            >
-              {t('back')}
-            </button>
+                <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Coins size={16} className="text-amber-500" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-semibold text-gray-900 mb-1">{isEn ? 'How to Recharge' : '充值方式'}</h4>
+                      <div className="text-sm text-gray-500 leading-relaxed" dangerouslySetInnerHTML={{ __html: parseMarkdown(rechargeSettings?.description || defaultDesc) }} />
+                    </div>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <p className="text-xs text-amber-700 font-medium mb-1">{isEn ? 'Important Notice' : '温馨提示'}</p>
+                    <p className="text-xs text-amber-600">
+                      {isEn ? 'Recharge requests are processed manually by our customer service team. Please allow some time for your balance to be updated.' : '充值请求由客服人员人工处理，请耐心等待余额到账。'}
+                    </p>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
     </div>
   );
 }
+
+
