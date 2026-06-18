@@ -238,7 +238,7 @@ export default function MyPage() {
 
       {user && (
         <>
-          {/* My Orders entry */
+          {/* My Orders entry */}
           <button
             onClick={() => setSubView('orders')}
             className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3 text-left hover:border-sky-200 transition-colors"
