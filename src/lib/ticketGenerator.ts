@@ -341,21 +341,21 @@ export function renderTicketToCanvas(p: TicketParams): void {
   // EN website label
   ctx.fillStyle = '#a8a29e';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Visit Lanke Group Official Website for details', W / 2, fBase + 160 * D);
+  ctx.fillText('Visit Lanke Group Official Website for details', W / 2, fBase + 156 * D);
 
   // URL
   ctx.fillStyle = '#0284c7';
-  ctx.font = `${24 * D}px sans-serif`;
-  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 186 * D);
+  ctx.font = `${26 * D}px sans-serif`;
+  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 178 * D);
 
   // Copyright line — Chinese
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 218 * D);
+  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 208 * D);
   // Copyright line — English
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 244 * D);
+  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 234 * D);
 
   ctx.textAlign = 'left';
 }

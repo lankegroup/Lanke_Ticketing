@@ -384,8 +384,8 @@ function UserOrdersPage({
     const canvas = printCanvasRef.current;
     if (!canvas) return;
     const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
-    const { data: printCount } = await supabase.rpc('admin_increment_print_count', { p_registration_id: order.id });
-    const isReprint = typeof printCount === 'number' && printCount > 1;
+    const { data: reprintCount } = await supabase.rpc('admin_increment_reprint_count', { p_registration_id: order.id });
+    const isReprint = typeof reprintCount === 'number' && reprintCount > 1;
     const s = order.sessions as any;
     renderTicketToCanvas({
       canvas, qrEl,
@@ -589,8 +589,8 @@ function UserOrdersPage({
                       {order.reschedule_count > 0 && (
                         <span className="text-xs px-2 py-0.5 bg-sky-100 text-sky-600 rounded-full">已换座×{order.reschedule_count}</span>
                       )}
-                      {order.print_count > 1 && (
-                        <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-semibold">补打×{order.print_count - 1}</span>
+                      {(order.reprint_count ?? 0) > 0 && (
+                        <span className="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full font-semibold">补打{order.reprint_count}次</span>
                       )}
                     </div>
                     <p className="text-xs text-gray-400 mb-3">{new Date(order.created_at).toLocaleString()}</p>

@@ -145,8 +145,8 @@ function RegistrationsList() {
     const canvas = printCanvasRef.current;
     if (!canvas) return;
     const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
-    const { data: printCount } = await supabase.rpc('admin_increment_print_count', { p_registration_id: reg.id });
-    const isReprint = typeof printCount === 'number' && printCount > 1;
+    const { data: reprintCount } = await supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id });
+    const isReprint = typeof reprintCount === 'number' && reprintCount > 1;
     const s = reg.sessions as any;
     renderTicketToCanvas({
       canvas, qrEl,
@@ -291,8 +291,8 @@ function RegistrationsList() {
             {r.is_supplementary && (
               <span className="text-[10px] px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded-full font-semibold">补票</span>
             )}
-            {r.print_count > 1 && (
-              <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full font-semibold">补打×{r.print_count - 1}</span>
+            {(r.reprint_count ?? 0) > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded-full font-semibold">补打{r.reprint_count}次</span>
             )}
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusColors[getDisplayStatus(r)]}`}>
               {statusLabels[getDisplayStatus(r)]}
