@@ -49,7 +49,12 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
   }, []);
 
   async function fetchUsers() {
-    const { data } = await supabase.from('user_profiles').select('id, display_name, phone, email');
+    const { data, error } = await supabase.from('user_profiles').select('id, display_name, phone, created_at').order('created_at', { ascending: false });
+    if (error) {
+      console.error('fetchUsers error:', error);
+      setUsers([]);
+      return;
+    }
     setUsers(data || []);
     fetchBalances(data || []);
   }
@@ -286,7 +291,7 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
               <div key={user.id} className="bg-white rounded-xl p-4 flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-gray-900">{user.display_name || (isEn ? 'No display name' : '未设置昵称')}</p>
-                  <p className="text-xs text-gray-400">{user.phone || user.email || (isEn ? 'No contact' : '无联系方式')}</p>
+                  <p className="text-xs text-gray-400">{user.phone || (isEn ? 'No phone' : '无手机号')}</p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">

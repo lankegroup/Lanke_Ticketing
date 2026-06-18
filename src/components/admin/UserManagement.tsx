@@ -107,7 +107,7 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
   }
 
   async function fetchPackages() {
-    const { data } = await supabase.rpc('get_recharge_packages');
+    const { data } = await supabase.from('lcoin_recharge_packages').select('*').eq('is_active', true).order('sort_order');
     setPackages(data || []);
   }
 
