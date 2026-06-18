@@ -122,6 +122,13 @@ function RegistrationsList() {
   }
 
   function requestPrint(reg: Registration) {
+    const reprintCount = (reg as any).reprint_count ?? 0;
+    const nextCount = reprintCount + 1;
+    if (nextCount >= 2) {
+      if (!window.confirm(`本次为第 ${nextCount} 次补打，是否继续？`)) {
+        return;
+      }
+    }
     setPendingPrintReg(reg);
     setShowPrintModal(true);
   }

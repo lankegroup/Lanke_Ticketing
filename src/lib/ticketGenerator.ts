@@ -189,19 +189,21 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.strokeRect(1, 1, W - 2, H - 2);
 
   // ── Badges ───────────────────────────────────────────────────────────
-  const BW = 72 * D; const BH = 34 * D;
-  const BX = W - PAD - BW;
   let badgeY = 22 * D;
 
   function drawBadge(label: string, color: string) {
+    const textWidth = ctx.measureText(label).width;
+    const BW = Math.max(72 * D, textWidth + 32 * D);
+    const BH = 40 * D;
+    const BX = W - PAD - BW;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(BX, badgeY, BW, BH, 7 * D);
+    ctx.roundRect(BX, badgeY, BW, BH, 8 * D);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${19 * D}px sans-serif`;
+    ctx.font = `bold ${22 * D}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(label, BX + BW / 2, badgeY + 23 * D);
+    ctx.fillText(label, BX + BW / 2, badgeY + 27 * D);
     ctx.textAlign = 'left';
     badgeY += BH + 6 * D;
   }
@@ -343,19 +345,19 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.font = `${22 * D}px sans-serif`;
   ctx.fillText('Visit Lanke Group Official Website for details', W / 2, fBase + 144 * D);
 
-  // URL — tighter spacing
+  // URL — with proper spacing
   ctx.fillStyle = '#0284c7';
   ctx.font = `${24 * D}px sans-serif`;
-  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 166 * D);
+  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 174 * D);
 
   // Copyright line — Chinese
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 192 * D);
+  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 206 * D);
   // Copyright line — English
   ctx.fillStyle = '#4a4a4a';
   ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 218 * D);
+  ctx.fillText('Copyright © Lanke Group. All Rights Reserved.', W / 2, fBase + 232 * D);
 
   ctx.textAlign = 'left';
 }
