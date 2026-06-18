@@ -142,50 +142,57 @@ function RegistrationsList() {
     setPrintingReg(reg);
     await new Promise(resolve => setTimeout(resolve, 150));
 
-    // Write service_fee, paid_at, printed_at to DB (async, don't wait)
-    supabase.from('registrations').update({
-      service_fee: result.serviceFee,
-      paid_at: result.paidAt,
-      printed_at: result.printedAt,
-    }).eq('id', reg.id).catch(() => {});
+    try {
+      const currentReprintCount = (reg as any).reprint_count ?? 0;
+      const newReprintCount = currentReprintCount + 1;
 
-    // Frontend immediate update: increment reprint_count locally
-    const currentReprintCount = (reg as any).reprint_count ?? 0;
-    const newReprintCount = currentReprintCount + 1;
-    setRegs(prev => prev.map(r => r.id === reg.id ? { ...r, reprint_count: newReprintCount } as any : r));
+      setRegs(prev => prev.map(r => r.id === reg.id ? { ...r, reprint_count: newReprintCount } as any : r));
 
-    // Backend increment (async, don't wait)
-    supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id }).catch(() => {});
+      supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id }).catch(() => {});
 
-    const canvas = printCanvasRef.current;
-    if (!canvas) return;
-    const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
-    const isReprint = newReprintCount > 1;
-    const s = reg.sessions as any;
-    renderTicketToCanvas({
-      canvas, qrEl,
-      ticketCode:        reg.ticket_code,
-      sessionName:       s?.name ?? '—',
-      sessionDate:       s?.session_date ?? '—',
-      startTime:         s?.start_time ?? '00:00',
-      endTime:           s?.end_time ?? '00:00',
-      verificationStart: s?.verification_start,
-      verificationEnd:   s?.verification_end,
-      name:              reg.name,
-      seatName:          (reg as any).seats?.seat_name,
-      ticketType:        reg.ticket_type,
-      operatorName:      '001',
-      orderTime:         formatOrderTime(new Date(reg.created_at)),
-      isSupplementary:   reg.is_supplementary,
-      isReprint,
-      orderStatus:       getDisplayStatus(reg),
-      ticketPrice:       s?.ticket_price,
-      serviceFee:        result.serviceFee,
-      paidAt:            result.paidAt,
-      printedAt:         result.printedAt,
-    });
-    downloadTicket(canvas, reg.ticket_code);
-    setPrintingReg(null);
+      supabase.from('registrations').update({
+        service_fee: result.serviceFee,
+        paid_at: result.paidAt,
+        printed_at: result.printedAt,
+      }).eq('id', reg.id).catch(() => {});
+
+      const canvas = printCanvasRef.current;
+      if (!canvas) {
+        showToast('打印失败：画布未就绪', 'error');
+        return;
+      }
+      const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
+      const isReprint = newReprintCount > 1;
+      const s = reg.sessions as any;
+      renderTicketToCanvas({
+        canvas, qrEl,
+        ticketCode:        reg.ticket_code,
+        sessionName:       s?.name ?? '—',
+        sessionDate:       s?.session_date ?? '—',
+        startTime:         s?.start_time ?? '00:00',
+        endTime:           s?.end_time ?? '00:00',
+        verificationStart: s?.verification_start,
+        verificationEnd:   s?.verification_end,
+        name:              reg.name,
+        seatName:          (reg as any).seats?.seat_name,
+        ticketType:        reg.ticket_type,
+        operatorName:      '001',
+        orderTime:         formatOrderTime(new Date(reg.created_at)),
+        isSupplementary:   reg.is_supplementary,
+        isReprint,
+        orderStatus:       getDisplayStatus(reg),
+        ticketPrice:       s?.ticket_price,
+        serviceFee:        result.serviceFee,
+        paidAt:            result.paidAt,
+        printedAt:         result.printedAt,
+      });
+      downloadTicket(canvas, reg.ticket_code);
+    } catch (err) {
+      console.error('Print error:', err);
+      showToast('打印失败，请重试', 'error');
+    } finally {
+      setPrintingReg(null);
+    }
   }
 
   async function cancelReg(id: string) {

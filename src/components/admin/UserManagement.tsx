@@ -388,39 +388,45 @@ function UserOrdersPage({
     }
     setPrintingOrder(order);
     await new Promise(resolve => setTimeout(resolve, 150));
-    const canvas = printCanvasRef.current;
-    if (!canvas) return;
-    const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
     
-    // Frontend immediate update: increment reprint_count locally
-    const newReprintCount = reprintCount + 1;
-    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, reprint_count: newReprintCount } as any : o));
-    
-    // Backend increment (async, don't wait)
-    supabase.rpc('admin_increment_reprint_count', { p_registration_id: order.id }).catch(() => {});
-    
-    const isReprint = newReprintCount > 1;
-    const s = order.sessions as any;
-    renderTicketToCanvas({
-      canvas, qrEl,
-      ticketCode:        order.ticket_code,
-      sessionName:       s?.name ?? '—',
-      sessionDate:       s?.session_date ?? '—',
-      startTime:         s?.start_time ?? '00:00',
-      endTime:           s?.end_time ?? '00:00',
-      verificationStart: s?.verification_start,
-      verificationEnd:   s?.verification_end,
-      name:              order.name,
-      phone:             order.phone,
-      seatName:          (order as any).seats?.seat_name,
-      operatorName:      profile?.username ?? '系统',
-      orderTime:         new Date(order.created_at).toLocaleString('zh-CN', { hour12: false }),
-      isSupplementary:   order.is_supplementary,
-      isReprint,
-      orderStatus:       order.status,
-    });
-    downloadTicket(canvas, order.ticket_code);
-    setPrintingOrder(null);
+    try {
+      const canvas = printCanvasRef.current;
+      if (!canvas) {
+        return;
+      }
+      const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
+      
+      const newReprintCount = reprintCount + 1;
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, reprint_count: newReprintCount } as any : o));
+      
+      supabase.rpc('admin_increment_reprint_count', { p_registration_id: order.id }).catch(() => {});
+      
+      const isReprint = newReprintCount > 1;
+      const s = order.sessions as any;
+      renderTicketToCanvas({
+        canvas, qrEl,
+        ticketCode:        order.ticket_code,
+        sessionName:       s?.name ?? '—',
+        sessionDate:       s?.session_date ?? '—',
+        startTime:         s?.start_time ?? '00:00',
+        endTime:           s?.end_time ?? '00:00',
+        verificationStart: s?.verification_start,
+        verificationEnd:   s?.verification_end,
+        name:              order.name,
+        phone:             order.phone,
+        seatName:          (order as any).seats?.seat_name,
+        operatorName:      profile?.username ?? '系统',
+        orderTime:         new Date(order.created_at).toLocaleString('zh-CN', { hour12: false }),
+        isSupplementary:   order.is_supplementary,
+        isReprint,
+        orderStatus:       order.status,
+      });
+      downloadTicket(canvas, order.ticket_code);
+    } catch (err) {
+      console.error('Print error:', err);
+    } finally {
+      setPrintingOrder(null);
+    }
   }
 
   async function handleCancel() {
