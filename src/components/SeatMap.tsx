@@ -20,6 +20,7 @@ interface SeatMapProps {
   onAdminSeatClick?: (seat: SeatMapRow) => void;
   stageCenterCol?: number;
   adminProxyMode?: boolean;
+  ticketPrice?: number;
 }
 
 // ── Ticket-type color maps ────────────────────────────────────────────────────
@@ -138,6 +139,7 @@ export default function SeatMap({
   onSeatClick, readonly = false, lockExpiresAt, isEn = false,
   adminBlockMode = false, adminSelectedIds, onAdminSeatClick,
   stageCenterCol, adminProxyMode = false,
+  ticketPrice,
 }: SeatMapProps) {
   const rowGroups: SeatMapRow[][] = [];
   for (let r = 1; r <= rows; r++) {
@@ -262,6 +264,12 @@ export default function SeatMap({
                       {/* Ticket-type dot on booked seats */}
                       {dotCls && (
                         <span className={`absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full ${dotCls}`} />
+                      )}
+                      {/* Price indicator on selected seats */}
+                      {isSelected && ticketPrice !== undefined && ticketPrice > 0 && (
+                        <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[8px] font-bold whitespace-nowrap">
+                          {ticketPrice} LC
+                        </span>
                       )}
                     </button>
                   );

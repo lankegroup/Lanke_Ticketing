@@ -518,6 +518,9 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
   const [showBookingNotice, setShowBookingNotice] = useState(false);
   const [pendingPrint, setPendingPrint] = useState<{ ticketCode: string; seatName?: string; supplementary: boolean; registrationId?: string } | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'rmb' | 'lcoin'>('rmb');
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
+  const [customerBalance, setCustomerBalance] = useState(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const lockedSeatRefs = useRef<Set<string>>(new Set());
@@ -634,6 +637,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     setPhone(val);
     setMatchedUserId(null);
     setMatchedUserName(null);
+    setCustomerBalance(0);
     if (val.trim().length < 7) return;
     setPhoneLooking(true);
     const { data } = await supabase.from('user_profiles').select('id, display_name').eq('phone', val.trim()).maybeSingle();
@@ -642,6 +646,8 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
       setMatchedUserId(data.id);
       setMatchedUserName(data.display_name);
       if (!name.trim() && data.display_name) setName(data.display_name);
+      const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: data.id });
+      setCustomerBalance(Number(balData) || 0);
     }
   }
 
@@ -655,16 +661,58 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     }
   }
 
-  async function handleSubmit() {
+  const getTicketPrice = (type: TicketType) => {
+    if (!selectedSession) return 0;
+    switch (type) {
+      case 'child': return selectedSession.child_price ?? selectedSession.ticket_price * 0.5;
+      case 'concession': return selectedSession.concession_price ?? selectedSession.ticket_price * 0.8;
+      case 'vip': return selectedSession.vip_price ?? selectedSession.ticket_price * 1.5;
+      default: return selectedSession.ticket_price;
+    }
+  };
+
+  const totalPrice = selectedSession
+    ? [...(selectedSession.has_seating_chart ? selectedSeatIds.map(id => seatTicketTypes[id] || 'adult') : entryTicketTypes)]
+        .reduce((sum, type) => sum + getTicketPrice(type), 0) + (selectedSession.default_service_fee || 0)
+    : 0;
+
+  function handleBookClick() {
+    if (!selectedSession || !name.trim() || !phone.trim()) return;
+    if (selectedSession.has_seating_chart && selectedSeatIds.length === 0) { setError('请选择座位'); return; }
+    if (selectedSession.booking_notice?.trim()) {
+      setShowBookingNotice(true);
+    } else {
+      setShowPaymentConfirm(true);
+    }
+  }
+
+  async function doSubmit() {
     if (!selectedSession || !name.trim() || !phone.trim()) return;
     if (selectedSession.has_seating_chart && selectedSeatIds.length === 0) { setError('请选择座位'); return; }
     setSubmitting(true);
     setError('');
 
-    const authSession = (await supabase.auth.getSession()).data.session;
+    if (paymentMethod === 'lcoin' && matchedUserId) {
+      if (customerBalance < totalPrice) {
+        setError(`余额不足！当前余额 ${customerBalance} L-Coin，需支付 ${totalPrice} L-Coin`);
+        setSubmitting(false);
+        return;
+      }
 
-    // For non-seating chart sessions, book N tickets based on quantity with ticket types
-    // For seating chart sessions, book each selected seat with its ticket type
+      const deductResult = await supabase.rpc('lcoin_transaction', {
+        p_user_id: matchedUserId,
+        p_amount: totalPrice,
+        p_description: `购票：${selectedSession.name}`,
+        p_type: 'purchase',
+      });
+
+      if (!deductResult.data?.success) {
+        setError('扣款失败，请重试');
+        setSubmitting(false);
+        return;
+      }
+    }
+
     const itemsToBook: { seatId: string | null; ticketType: TicketType }[] = selectedSession.has_seating_chart
       ? selectedSeatIds.map(seatId => ({ seatId, ticketType: seatTicketTypes[seatId] || 'adult' }))
       : entryTicketTypes.map(ticketType => ({ seatId: null, ticketType }));
@@ -681,6 +729,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
         p_force: false,
         p_order_source: 'front_desk',
         p_ticket_type: item.ticketType,
+        p_is_supplementary: isSupplementary,
       });
       const rpcResult = res.data as any;
       if (res.error || !rpcResult?.success) {
@@ -696,7 +745,11 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     setSuccessTickets(results);
     setStep('done');
 
-    // Show print modal for the first ticket
+    if (paymentMethod === 'lcoin' && matchedUserId) {
+      const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: matchedUserId });
+      setCustomerBalance(Number(balData) || 0);
+    }
+
     if (results.length > 0) {
       setPendingPrint({ ticketCode: results[0].ticket_code, seatName: results[0].seat_name, supplementary: isSupplementary, registrationId: results[0].registration_id });
       setShowPrintModal(true);
@@ -823,8 +876,9 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
           <p className="text-xs text-gray-400">电子票已自动下载</p>
           <div className="flex gap-2 w-full">
             <button onClick={() => {
-              setPendingPrint({ ticketCode: successTickets[0].ticket_code, seatName: successTickets[0].seat_name, supplementary: isSupplementary, registrationId: successTickets[0].registration_id });
-              setShowPrintModal(true);
+              successTickets.forEach((t, i) => {
+                setTimeout(() => generateAndDownload(t.ticket_code, t.seat_name, isSupplementary, t.registration_id), i * 100);
+              });
             }}
               className="flex-1 py-2.5 border border-emerald-200 text-emerald-600 rounded-xl text-sm hover:bg-emerald-50 transition-colors">
               重新下载
@@ -956,6 +1010,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
               onSeatClick={locking ? () => {} : handleSeatClick}
               lockExpiresAt={lockExpiresAt || undefined}
               stageCenterCol={selectedSession.stage_center_col ?? undefined}
+              ticketPrice={selectedSession.ticket_price}
             />
           </div>
           {selectedSeatsList.length > 0 && (
@@ -1086,6 +1141,95 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
               className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400" />
           </div>
 
+          <div className="bg-gray-50 rounded-xl p-3 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-gray-500">票价明细</span>
+              <span className="text-xs text-gray-400">
+                {selectedSession.has_seating_chart ? selectedSeatIds.length : entryTicketTypes.length} 张
+              </span>
+            </div>
+            <div className="space-y-1">
+              {selectedSession.has_seating_chart ? selectedSeatIds.map(id => {
+                const type = seatTicketTypes[id] || 'adult';
+                const price = getTicketPrice(type);
+                const seat = seats.find(s => s.id === id);
+                return (
+                  <div key={id} className="flex justify-between text-xs">
+                    <span className="text-gray-600">
+                      {seat?.seat_name} · {type === 'adult' ? '成人票' : type === 'child' ? '儿童票' : type === 'concession' ? '优待票' : 'VIP票'}
+                    </span>
+                    <span className="font-medium text-gray-800">{price} LC</span>
+                  </div>
+                );
+              }) : entryTicketTypes.map((type, idx) => {
+                const price = getTicketPrice(type);
+                return (
+                  <div key={idx} className="flex justify-between text-xs">
+                    <span className="text-gray-600">
+                      {idx + 1} · {type === 'adult' ? '成人票' : type === 'child' ? '儿童票' : type === 'concession' ? '优待票' : 'VIP票'}
+                    </span>
+                    <span className="font-medium text-gray-800">{price} LC</span>
+                  </div>
+                );
+              })}
+            </div>
+            {selectedSession.default_service_fee > 0 && (
+              <div className="flex justify-between text-xs pt-1 border-t border-gray-200">
+                <span className="text-gray-600">手续费</span>
+                <span className="font-medium text-gray-800">{selectedSession.default_service_fee} LC</span>
+              </div>
+            )}
+            <div className="flex justify-between pt-1 border-t border-gray-200">
+              <span className="text-sm font-semibold text-gray-700">应付总额</span>
+              <span className="text-lg font-bold text-amber-500">{totalPrice} LC</span>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-2">支付方式</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setPaymentMethod('rmb')}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${
+                  paymentMethod === 'rmb' ? 'border-sky-500 bg-sky-50' : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${paymentMethod === 'rmb' ? 'bg-sky-500' : 'bg-gray-200'}`}>
+                    <span className="text-white text-xs font-bold">¥</span>
+                  </div>
+                  <span className={`text-sm font-medium ${paymentMethod === 'rmb' ? 'text-sky-700' : 'text-gray-600'}`}>人民币</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">由操作员验收</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => matchedUserId && setPaymentMethod('lcoin')}
+                disabled={!matchedUserId}
+                className={`p-3 rounded-xl border-2 text-left transition-all ${
+                  paymentMethod === 'lcoin' ? 'border-amber-500 bg-amber-50' :
+                  !matchedUserId ? 'border-gray-100 bg-gray-50 opacity-50 cursor-not-allowed' :
+                  'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+                    paymentMethod === 'lcoin' ? 'bg-amber-500' : !matchedUserId ? 'bg-gray-300' : 'bg-amber-100'
+                  }`}>
+                    <span className={`text-xs font-bold ${paymentMethod === 'lcoin' || !matchedUserId ? 'text-white' : 'text-amber-600'}`}>LC</span>
+                  </div>
+                  <span className={`text-sm font-medium ${
+                    paymentMethod === 'lcoin' ? 'text-amber-700' : !matchedUserId ? 'text-gray-400' : 'text-gray-600'
+                  }`}>兰克币</span>
+                </div>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {matchedUserId ? `余额: ${customerBalance} LC` : '需匹配用户'}
+                </p>
+              </button>
+            </div>
+          </div>
+
           {error && <p className="text-xs text-red-500">{error}</p>}
 
           <button onClick={handleBookClick} disabled={submitting || !name.trim() || !phone.trim()}
@@ -1098,7 +1242,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
       {showBookingNotice && selectedSession?.booking_notice?.trim() && (
         <BookingNoticeModal
           notice={selectedSession.booking_notice}
-          onConfirm={() => { setShowBookingNotice(false); handleSubmit(); }}
+          onConfirm={() => { setShowBookingNotice(false); setShowPaymentConfirm(true); }}
           onAbort={() => setShowBookingNotice(false)}
         />
       )}
@@ -1111,6 +1255,85 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
           onConfirm={handlePrintConfirm}
           onCancel={() => { setShowPrintModal(false); setPendingPrint(null); }}
         />
+      )}
+
+      {showPaymentConfirm && selectedSession && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="text-center">
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3 ${
+                paymentMethod === 'rmb' ? 'bg-sky-100' : 'bg-amber-100'
+              }`}>
+                <span className={`text-lg font-bold ${paymentMethod === 'rmb' ? 'text-sky-600' : 'text-amber-600'}`}>
+                  {paymentMethod === 'rmb' ? '¥' : 'LC'}
+                </span>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">
+                {paymentMethod === 'rmb' ? '人民币支付确认' : '兰克币支付确认'}
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                {paymentMethod === 'rmb' ? '请确认已完成人民币收款' : '将从用户账户中扣除兰克币'}
+              </p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">活动名称</span>
+                <span className="font-medium text-gray-900 truncate max-w-[150px]">{selectedSession.name}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">票数</span>
+                <span className="font-medium text-gray-900">
+                  {selectedSession.has_seating_chart ? selectedSeatIds.length : entryTicketTypes.length}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">支付方式</span>
+                <span className={`font-medium ${paymentMethod === 'rmb' ? 'text-sky-600' : 'text-amber-600'}`}>
+                  {paymentMethod === 'rmb' ? '人民币' : '兰克币'}
+                </span>
+              </div>
+              <div className="border-t border-gray-200 pt-2 flex justify-between">
+                <span className="text-gray-600">应付总额</span>
+                <span className={`text-xl font-bold ${paymentMethod === 'rmb' ? 'text-sky-500' : 'text-amber-500'}`}>
+                  {totalPrice} {paymentMethod === 'rmb' ? '元' : 'LC'}
+                </span>
+              </div>
+              {paymentMethod === 'lcoin' && matchedUserId && (
+                <div className="text-xs text-gray-400 pt-1">
+                  当前余额: {customerBalance} LC
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowPaymentConfirm(false)}
+                className="flex-1 py-3 rounded-xl border border-gray-200 text-gray-600 font-semibold hover:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={() => { setShowPaymentConfirm(false); doSubmit(); }}
+                disabled={submitting}
+                className={`flex-1 py-3 rounded-xl font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+                  paymentMethod === 'rmb'
+                    ? 'bg-gradient-to-r from-sky-500 to-sky-400 text-white hover:from-sky-400 hover:to-sky-300'
+                    : 'bg-gradient-to-r from-amber-500 to-amber-400 text-white hover:from-amber-400 hover:to-amber-300'
+                }`}
+              >
+                {submitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    {paymentMethod === 'rmb' ? '出票中...' : '支付中...'}
+                  </span>
+                ) : (
+                  paymentMethod === 'rmb' ? '确认收款并出票' : '确认支付'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
