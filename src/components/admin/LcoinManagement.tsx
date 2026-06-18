@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { supabase, callEdgeFunction } from '../../lib/supabase';
-import { X, Search, Plus, Minus, User, Package, History, Save, Trash2, AlertCircle, Settings } from 'lucide-react';
+import { supabase, callEdgeFunction, uploadImageViaFunction } from '../../lib/supabase';
+import { X, Search, Plus, Minus, User, Package, History, Save, Trash2, AlertCircle, Settings, Image } from 'lucide-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
@@ -25,6 +25,7 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
   const [packages, setPackages] = useState<any[]>([]);
   const [newPackage, setNewPackage] = useState({ name: '', name_en: '', price: '', lcoin_amount: '', description: '', description_en: '' });
   const [editingPackage, setEditingPackage] = useState<any>(null);
+  const [showPackageForm, setShowPackageForm] = useState(false);
   const [savingPackage, setSavingPackage] = useState(false);
 
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -34,6 +35,11 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
   const [rechargeDescription, setRechargeDescription] = useState('');
   const [rechargeDescriptionEn, setRechargeDescriptionEn] = useState('');
   const [savingConfig, setSavingConfig] = useState(false);
+
+  const [bannerImage, setBannerImage] = useState<string | null>(null);
+  const [rechargeEnabled, setRechargeEnabled] = useState(true);
+  const [rechargeSettingsId, setRechargeSettingsId] = useState<string | null>(null);
+  const [uploadingBanner, setUploadingBanner] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -64,20 +70,49 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
 
   async function fetchTransactions() {
     setLoadingTransactions(true);
-    let query = supabase.from('lcoin_transactions').select('*, user_profiles(display_name, phone)').order('created_at', { ascending: false });
-    if (transactionUser) {
-      query = query.eq('user_id', transactionUser);
+    try {
+      let query = supabase.from('lcoin_transactions').select('*').order('created_at', { ascending: false });
+      if (transactionUser) {
+        query = query.eq('user_id', transactionUser);
+      }
+      const { data, error } = await query.limit(500);
+      if (error) {
+        console.error('fetchTransactions error:', error);
+        setTransactions([]);
+      } else {
+        const txs = data || [];
+        const userIds = [...new Set(txs.map(t => t.user_id).filter(Boolean))];
+        const userMap = new Map<string, { display_name: string; phone: string }>();
+        if (userIds.length > 0) {
+          const { data: userData } = await supabase.from('user_profiles').select('id, display_name, phone').in('id', userIds);
+          (userData || []).forEach((u: any) => userMap.set(u.id, { display_name: u.display_name, phone: u.phone }));
+        }
+        setTransactions(txs.map((t: any) => ({
+          ...t,
+          user_profiles: userMap.get(t.user_id) || null,
+        })));
+      }
+    } catch (err) {
+      console.error('fetchTransactions exception:', err);
+      setTransactions([]);
     }
-    const { data } = await query.limit(100);
-    setTransactions(data || []);
     setLoadingTransactions(false);
   }
 
   async function fetchConfig() {
-    const { data } = await supabase.from('lcoin_config').select('key, value, value_en').eq('key', 'recharge_description');
-    if (data && data.length > 0) {
-      setRechargeDescription(data[0].value || '');
-      setRechargeDescriptionEn(data[0].value_en || '');
+    const { data: configData } = await supabase.from('lcoin_config').select('key, value, value_en').eq('key', 'recharge_description');
+    if (configData && configData.length > 0) {
+      setRechargeDescription(configData[0].value || '');
+      setRechargeDescriptionEn(configData[0].value_en || '');
+    }
+    const { data: settingsData } = await supabase.from('recharge_settings').select('*').single();
+    if (settingsData) {
+      setRechargeSettingsId(settingsData.id);
+      setBannerImage(settingsData.banner_image || null);
+      setRechargeEnabled(settingsData.enabled ?? true);
+      if (settingsData.description && !configData?.[0]?.value) {
+        setRechargeDescription(settingsData.description);
+      }
     }
   }
 
@@ -90,11 +125,40 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
       } else {
         await supabase.from('lcoin_config').insert({ key: 'recharge_description', value: rechargeDescription, value_en: rechargeDescriptionEn });
       }
+      if (rechargeSettingsId) {
+        await supabase.from('recharge_settings').update({
+          banner_image: bannerImage,
+          description: rechargeDescription.trim(),
+          enabled: rechargeEnabled,
+          updated_at: new Date().toISOString(),
+        }).eq('id', rechargeSettingsId);
+      } else {
+        const { data: newSettings } = await supabase.from('recharge_settings').insert({
+          banner_image: bannerImage,
+          description: rechargeDescription.trim(),
+          enabled: rechargeEnabled,
+        }).select('id').single();
+        if (newSettings) setRechargeSettingsId(newSettings.id);
+      }
       alert(isEn ? 'Saved successfully' : '保存成功');
     } catch {
       alert(isEn ? 'Save failed' : '保存失败');
     }
     setSavingConfig(false);
+  }
+
+  async function handleBannerUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBanner(true);
+    const { url, error } = await uploadImageViaFunction(file, 'recharge_banners');
+    setUploadingBanner(false);
+    if (error) {
+      alert(isEn ? 'Image upload failed' : '图片上传失败');
+    } else if (url) {
+      setBannerImage(url);
+      alert(isEn ? 'Image uploaded successfully' : '图片上传成功');
+    }
   }
 
   async function handleAdjust() {
@@ -154,6 +218,7 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
       fetchPackages();
       setNewPackage({ name: '', name_en: '', price: '', lcoin_amount: '', description: '', description_en: '' });
       setEditingPackage(null);
+      setShowPackageForm(false);
       alert(isEn ? 'Saved successfully' : '保存成功');
     } catch {
       alert(isEn ? 'Save failed' : '保存失败');
@@ -246,7 +311,7 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
 
       {tab === 'packages' && (
         <div className="p-4 space-y-4">
-          <button onClick={() => { setEditingPackage(null); setNewPackage({ name: '', name_en: '', price: '', lcoin_amount: '', description: '', description_en: '' }); }} className="w-full bg-amber-500 hover:bg-amber-400 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+          <button onClick={() => { setEditingPackage(null); setNewPackage({ name: '', name_en: '', price: '', lcoin_amount: '', description: '', description_en: '' }); setShowPackageForm(true); }} className="w-full bg-amber-500 hover:bg-amber-400 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
             <Plus size={16} /> {isEn ? 'Add Package' : '新增套餐'}
           </button>
           <div className="space-y-2">
@@ -255,7 +320,7 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="font-semibold text-gray-900">{isEn ? (pkg.name_en || pkg.name) : pkg.name}</h4>
                   <div className="flex items-center gap-2">
-                    <button onClick={() => { setEditingPackage(pkg); setNewPackage({ name: pkg.name, name_en: pkg.name_en || '', price: String(pkg.price), lcoin_amount: String(pkg.lcoin_amount), description: pkg.description || '', description_en: pkg.description_en || '' }); }} className="text-sky-500 text-sm hover:text-sky-600">{isEn ? 'Edit' : '编辑'}</button>
+                    <button onClick={() => { setEditingPackage(pkg); setNewPackage({ name: pkg.name, name_en: pkg.name_en || '', price: String(pkg.price), lcoin_amount: String(pkg.lcoin_amount), description: pkg.description || '', description_en: pkg.description_en || '' }); setShowPackageForm(true); }} className="text-sky-500 text-sm hover:text-sky-600">{isEn ? 'Edit' : '编辑'}</button>
                     <button onClick={() => deletePackage(pkg.id)} className="text-red-500 text-sm hover:text-red-600 flex items-center gap-1"><Trash2 size={14} /> {isEn ? 'Delete' : '删除'}</button>
                   </div>
                 </div>
@@ -273,9 +338,12 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
               </div>
             )}
           </div>
-          {(editingPackage || newPackage.name || newPackage.price) && (
+          {showPackageForm && (
             <div className="bg-white rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-gray-900">{editingPackage ? (isEn ? 'Edit Package' : '编辑套餐') : (isEn ? 'Add Package' : '新增套餐')}</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-900">{editingPackage ? (isEn ? 'Edit Package' : '编辑套餐') : (isEn ? 'Add Package' : '新增套餐')}</h3>
+                <button onClick={() => { setShowPackageForm(false); setEditingPackage(null); }} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+              </div>
               <div><label className="block text-xs font-medium text-gray-500 mb-1">{isEn ? 'Name (Chinese)' : '套餐名称（中文）'}</label><input value={newPackage.name} onChange={e => setNewPackage({ ...newPackage, name: e.target.value })} placeholder={isEn ? 'e.g. 100 L-Coin Package' : '如：100兰克币套餐'} className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
               <div><label className="block text-xs font-medium text-gray-500 mb-1">{isEn ? 'Name (English)' : '套餐名称（英文）'}</label><input value={newPackage.name_en} onChange={e => setNewPackage({ ...newPackage, name_en: e.target.value })} placeholder={isEn ? 'e.g. 100 L-Coin Package' : '英文名称'} className="w-full border border-gray-200 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" /></div>
               <div className="grid grid-cols-2 gap-3">
@@ -336,10 +404,32 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
       {tab === 'config' && (
         <div className="p-4 space-y-4">
           <div className="bg-white rounded-xl p-4 space-y-3">
-            <h3 className="font-semibold text-gray-900">{isEn ? 'Recharge Instructions (Rich Text)' : '充值说明（富文本）'}</h3>
-            <p className="text-xs text-gray-400">{isEn ? 'Content edited here will be displayed on the client-side "L-Coin Balance" page' : '在此编辑的内容将显示在客户端"兰克币余额"页面的充值说明区域'}</p>
-            
+            <h3 className="font-semibold text-gray-900">{isEn ? 'Recharge Page Settings' : '充值页面设置'}</h3>
+            <p className="text-xs text-gray-400">{isEn ? 'Settings here will be displayed on the client recharge page' : '以下设置将显示在客户端充值页面'}</p>
+
             <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">{isEn ? 'Top Banner Image' : '顶部横幅图片'}</label>
+                {bannerImage ? (
+                  <div className="relative rounded-xl overflow-hidden">
+                    <img src={bannerImage} alt="充值横幅" className="w-full h-40 object-cover" />
+                    <button
+                      onClick={() => setBannerImage(null)}
+                      className="absolute top-2 right-2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-lg flex items-center justify-center transition-colors"
+                    >
+                      <Trash2 size={16} className="text-white" />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-amber-300 hover:bg-amber-50 transition-colors">
+                    <Image size={24} className="text-gray-400 mb-2" />
+                    <span className="text-sm text-gray-500">{isEn ? 'Click to upload banner image' : '点击上传横幅图片'}</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} disabled={uploadingBanner} />
+                  </label>
+                )}
+                <p className="text-xs text-gray-400 mt-2">{isEn ? 'Supports JPG, PNG format, recommended size 600×300' : '支持 JPG、PNG 格式，建议尺寸 600×300'}</p>
+              </div>
+
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">{isEn ? 'Chinese Content' : '中文内容'}</label>
                 <ReactQuill
@@ -362,9 +452,22 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
                   style={{ minHeight: '200px' }}
                 />
               </div>
+
+              <div className="flex items-center justify-between bg-gray-50 rounded-xl p-4">
+                <div>
+                  <p className="font-medium text-gray-900">{isEn ? 'Enable Recharge Page' : '启用充值说明页面'}</p>
+                  <p className="text-xs text-gray-400">{isEn ? 'Users will not be able to view the recharge instructions when disabled' : '关闭后用户将无法查看充值说明页面'}</p>
+                </div>
+                <button
+                  onClick={() => setRechargeEnabled(!rechargeEnabled)}
+                  className={`w-12 h-6 rounded-full transition-colors relative ${rechargeEnabled ? 'bg-amber-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${rechargeEnabled ? 'left-7' : 'left-1'}`} />
+                </button>
+              </div>
             </div>
-            
-            <button onClick={saveConfig} disabled={savingConfig} className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+
+            <button onClick={saveConfig} disabled={savingConfig || uploadingBanner} className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
               <Save size={16} /> {savingConfig ? (isEn ? 'Saving...' : '保存中...') : (isEn ? 'Save Settings' : '保存配置')}
             </button>
           </div>

@@ -8,14 +8,13 @@ import OrderManagement from './OrderManagement';
 import AdminSettings from './AdminSettings';
 import CustomerCenter from './CustomerCenter';
 import UserManagement from './UserManagement';
-import RechargeSettings from './RechargeSettings';
 import LcoinManagement from './LcoinManagement';
 import {
   ScanLine, FileText, ClipboardList, MessageSquare,
-  Users, Settings, LogOut, Ticket, Monitor, Smartphone, Coins, Wallet,
+  Users, Settings, LogOut, Ticket, Monitor, Smartphone, Wallet,
 } from 'lucide-react';
 
-type Tab = 'workbench' | 'content' | 'orders' | 'feedback' | 'users' | 'recharge' | 'lcoin';
+type Tab = 'workbench' | 'content' | 'orders' | 'feedback' | 'users' | 'lcoin';
 type ViewMode = 'pc' | 'mobile';
 
 function readStoredViewMode(): ViewMode {
@@ -69,7 +68,6 @@ export default function AdminLayout() {
     { id: 'feedback'  as Tab, label: '客户中心',        icon: MessageSquare },
     { id: 'users'     as Tab, label: t('users'),      icon: Users },
     { id: 'lcoin'     as Tab, label: '兰克币管理',    icon: Wallet },
-    { id: 'recharge'  as Tab, label: '充值管理',      icon: Coins },
   ];
 
   useEffect(() => {
@@ -84,7 +82,6 @@ export default function AdminLayout() {
     if (tab === 'feedback')  return <CustomerCenter />;
     if (tab === 'users')     return <UserManagement />;
     if (tab === 'lcoin')     return <LcoinManagement onBack={() => setTab('workbench')} />;
-    if (tab === 'recharge')  return <RechargeSettings onBack={() => setTab('workbench')} />;
     return null;
   }
 
