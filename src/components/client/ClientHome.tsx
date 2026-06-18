@@ -691,210 +691,262 @@ function BookingFormView({
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* 顶部导航栏 */}
       <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex items-center gap-3">
         <button onClick={onBack} className="p-1.5 hover:bg-gray-100 rounded-xl transition-colors">
           <ArrowLeft size={18} className="text-gray-700" />
         </button>
         <div className="flex-1 min-w-0">
-          <p className={`font-semibold text-gray-900 truncate ${isEn ? 'text-sm' : 'text-base'}`}>{t('booking_info')}</p>
+          <p className={`font-semibold text-gray-900 truncate ${isEn ? 'text-sm' : 'text-base'}`}>
+            {isEn ? 'Order Settlement' : '订单结算'}
+          </p>
           <p className="text-xs text-gray-400 truncate">{session.name}</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex-1 px-4 py-4 space-y-4">
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 flex items-center gap-3">
-          {session.cover_image && (
-            <img src={session.cover_image} alt="" className="w-14 h-14 rounded-xl object-cover flex-shrink-0" />
-          )}
-          <div>
-            <p className={`font-semibold text-gray-900 ${isEn ? 'text-xs' : 'text-sm'}`}>{session.name}</p>
-            <p className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5">
-              <Calendar size={10} /> {session.session_date}
-              <Clock size={10} className="ml-1" /> {session.start_time.slice(0, 5)}
-            </p>
-            <p className="text-xs text-sky-600 font-medium mt-0.5">
-              {totalOrders} {isEn ? 'tickets' : '张票'}
-            </p>
-          </div>
-        </div>
-
-        {/* Ticket list with type selection */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
-            <Ticket size={12} /> {isEn ? 'Your Tickets' : '您的票据'}
-          </h3>
-
-          {hasSeats && selectedSeats.map(s => (
-            <div key={s.seatId} className="flex items-center bg-gray-50 rounded-xl px-3 py-2 gap-2">
-              <div className="flex-shrink-0">
-                <p className="text-sm font-semibold text-gray-700">{formatSeatName(s.seatName, isEn)}</p>
-                <p className="text-xs text-gray-400">{isEn ? 'Seat' : '座位'}</p>
+      <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
+        <div className="flex-1 overflow-auto px-4 py-4 space-y-3">
+          {/* 顶部信息卡片 - 仿电商风格 */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="bg-gradient-to-r from-sky-500 to-cyan-500 px-4 py-3">
+              <h3 className="text-white font-bold text-base">{session.name}</h3>
+            </div>
+            <div className="p-4 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Calendar size={14} className="text-sky-500" />
+                <span>{session.session_date}</span>
               </div>
-              <TicketTypeSegmented
-                value={s.ticketType}
-                onChange={v => onUpdateSeatTicketType(s.seatId, v)}
-                isEn={isEn}
-              />
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Clock size={14} className="text-sky-500" />
+                <span>{session.start_time.slice(0, 5)} - {session.end_time.slice(0, 5)}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-600">
+                <Ticket size={14} className="text-sky-500" />
+                <span>{totalOrders} {isEn ? 'ticket(s)' : '张票'}</span>
+              </div>
             </div>
-          ))}
+          </div>
 
-          {!hasSeats && nonSeatEntries.map((entry, idx) => (
-            <div key={entry.id} className="flex items-center bg-gray-50 rounded-xl px-3 py-2 gap-2">
-              <span className="w-6 h-6 rounded-full bg-sky-100 text-sky-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                {idx + 1}
-              </span>
-              <TicketTypeSegmented
-                value={entry.ticketType}
-                onChange={v => onUpdateNonSeatEntryTicketType(entry.id, v)}
-                isEn={isEn}
-              />
-              {nonSeatEntries.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => onRemoveNonSeatEntry(entry.id)}
-                  className="p-1 hover:bg-red-100 rounded-lg text-red-400 hover:text-red-600 transition-colors flex-shrink-0"
-                >
-                  <X size={14} />
-                </button>
+          {/* 费用明细列表 - 仿淘宝/京东结算清单 */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-4 py-3 border-b border-gray-100">
+              <h3 className="font-semibold text-gray-900 text-sm flex items-center gap-2">
+                <Coins size={16} className="text-amber-500" />
+                {isEn ? 'Fee Details' : '费用明细'}
+              </h3>
+            </div>
+            <div className="p-4 space-y-3">
+              {/* 票价明细 */}
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{isEn ? 'Ticket Price' : '活动票价'}</p>
+                {hasSeats && selectedSeats.map((s, idx) => (
+                  <div key={s.seatId} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs flex items-center justify-center">{idx + 1}</span>
+                      <div>
+                        <p className="text-sm text-gray-700">{formatSeatName(s.seatName, isEn)}</p>
+                        <p className="text-xs text-gray-400">
+                          {isEn 
+                            ? (s.ticketType === 'adult' ? 'Adult' : s.ticketType === 'child' ? 'Child' : 'Concession')
+                            : (s.ticketType === 'adult' ? '成人票' : s.ticketType === 'child' ? '儿童票' : '优待票')
+                          }
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-sm font-medium text-red-500">-{session.ticket_price} L-Coin</span>
+                  </div>
+                ))}
+                {!hasSeats && nonSeatEntries.map((entry, idx) => (
+                  <div key={entry.id} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-gray-100 text-gray-500 text-xs flex items-center justify-center">{idx + 1}</span>
+                      <p className="text-sm text-gray-700">
+                        {isEn 
+                          ? (entry.ticketType === 'adult' ? 'Adult Ticket' : entry.ticketType === 'child' ? 'Child Ticket' : 'Concession Ticket')
+                          : (entry.ticketType === 'adult' ? '成人票' : entry.ticketType === 'child' ? '儿童票' : '优待票')
+                        }
+                      </p>
+                    </div>
+                    <span className="text-sm font-medium text-red-500">-{session.ticket_price} L-Coin</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* 服务费明细 */}
+              {session.default_service_fee > 0 && (
+                <div className="pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-gray-600">{isEn ? 'Service Fee' : '服务费'}</p>
+                    <span className="text-sm font-medium text-gray-600">-{session.default_service_fee} L-Coin</span>
+                  </div>
+                </div>
               )}
-            </div>
-          ))}
 
-          {!hasSeats && nonSeatEntries.length < 3 && (
-            <button
-              type="button"
-              onClick={onAddNonSeatEntry}
-              className="w-full flex items-center justify-center gap-1 text-sky-600 text-xs font-medium py-2 border border-dashed border-sky-300 rounded-xl hover:bg-sky-50 transition-colors"
-            >
-              <Plus size={14} /> {isEn ? 'Add Another Ticket' : '添加更多票'}
-            </button>
+              {/* 合计栏 */}
+              <div className="pt-3 border-t-2 border-gray-200">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-gray-900">{isEn ? 'Total' : '合计支付'}</span>
+                  <span className="text-xl font-bold text-amber-500 flex items-center gap-1">
+                    <Coins size={18} />
+                    {totalPrice.toFixed(2)} L-Coin
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 用户余额信息 */}
+          {userId && (
+            <div className={`rounded-2xl border-2 p-4 ${balance >= totalPrice ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${balance >= totalPrice ? 'bg-emerald-100' : 'bg-red-100'}`}>
+                    <Coins size={20} className={balance >= totalPrice ? 'text-emerald-500' : 'text-red-500'} />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">{isEn ? 'Available L-Coin Balance' : '可用兰克币余额'}</p>
+                    <p className={`font-bold text-lg ${balance >= totalPrice ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {balanceLoading ? '...' : balance.toFixed(2)} L-Coin
+                    </p>
+                  </div>
+                </div>
+                {balance < totalPrice && (
+                  <div className="text-right">
+                    <p className="text-xs text-red-500 font-medium">{isEn ? 'Insufficient Balance' : '余额不足'}</p>
+                    <p className="text-xs text-red-400">{isEn ? 'Need more:' : '还需：'}{totalPrice - balance} L-Coin</p>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
-        </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            {isEn ? 'Contact Information' : '填写信息'}
-          </h3>
-          <div>
-            <label className={`block font-medium text-gray-700 mb-1.5 ${isEn ? 'text-xs' : 'text-sm'}`}>{t('name')}</label>
-            <input
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder={t('enter_name')}
-              className={`w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400 ${isEn ? 'text-xs' : 'text-sm'}`}
-              required
-            />
-          </div>
-          <div>
-            <label className={`block font-medium text-gray-700 mb-1.5 ${isEn ? 'text-xs' : 'text-sm'}`}>{t('phone')}</label>
-            <input
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              placeholder={t('enter_phone')}
-              type="tel"
-              className={`w-full border border-gray-200 rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-sky-400 ${isEn ? 'text-xs' : 'text-sm'}`}
-              required
-            />
-          </div>
-          <div>
-            <label className={`block font-medium text-gray-700 mb-1.5 ${isEn ? 'text-xs' : 'text-sm'}`}>
-              {isEn ? 'Order Note (Optional)' : '订单备注（选填）'}
-            </label>
-            <textarea
-              value={noteContent}
-              onChange={e => {
-                const newValue = e.target.value;
-                const locale: 'zh' | 'en' = isEn ? 'en' : 'zh';
-                
-                let finalValue = newValue;
-                if (locale === 'zh') {
-                  const validation = validateRemark(newValue, 'zh');
-                  if (!validation.valid) {
-                    finalValue = truncateRemark(newValue, 'zh');
-                  }
-                } else {
-                  const words = newValue.split(/\s+/).filter(w => w.length > 0).length;
-                  if (words > 20 || newValue.length > 120) {
-                    finalValue = truncateRemark(newValue, 'en');
-                  }
-                }
-                
-                setNoteContent(finalValue);
-                
-                const limit = getRemarkLimit(finalValue, locale);
-                setNoteLimit(limit);
-                
-                if (locale === 'en') {
-                  const charLimit = getEnglishCharLimit(finalValue);
-                  setEnglishCharLimit(charLimit);
-                }
-                
-                const validation = validateRemark(finalValue, locale);
-                setNoteValidationError(validation.valid ? '' : validation.message);
-              }}
-              placeholder={isEn ? 'Add any special requirements...' : '如有特殊需求请在此填写...'}
-              rows={2}
-              maxLength={isEn ? 120 : 30}
-              className={`w-full border rounded-xl px-4 py-2.5 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 resize-none ${
-                isEn ? 'text-xs' : 'text-sm'
-              } ${noteValidationError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-sky-400'}`}
-            />
-            <div className="flex items-center justify-between mt-1">
-              <p className="text-[10px] text-gray-400">{isEn ? 'Max 20 words (120 chars)' : '最多可输入30字'}</p>
-              {noteContent && (
-                <span className={`text-[10px] ${noteValidationError ? 'text-red-500' : 'text-gray-400'}`}>
-                  {isEn 
-                    ? `${noteLimit.current}/${noteLimit.max} words · ${englishCharLimit.current}/${englishCharLimit.max} chars`
-                    : `${noteLimit.current}/${noteLimit.max} ${noteLimit.unit}`
-                  }
-                </span>
-              )}
-            </div>
-            {noteValidationError && (
-              <p className="text-[10px] text-red-500 mt-1">{noteValidationError}</p>
+          {/* 票据类型选择 */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{isEn ? 'Ticket Type' : '票据类型'}</h3>
+            {hasSeats && selectedSeats.map(s => (
+              <div key={s.seatId} className="flex items-center justify-between py-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">{formatSeatName(s.seatName, isEn)}</p>
+                  <p className="text-xs text-gray-400">{isEn ? 'Seat' : '座位'}</p>
+                </div>
+                <TicketTypeSegmented value={s.ticketType} onChange={v => onUpdateSeatTicketType(s.seatId, v)} isEn={isEn} />
+              </div>
+            ))}
+            {!hasSeats && nonSeatEntries.length > 1 && nonSeatEntries.map((entry, idx) => (
+              <div key={entry.id} className="flex items-center justify-between py-2">
+                <span className="text-sm text-gray-600">#{idx + 1}</span>
+                <TicketTypeSegmented value={entry.ticketType} onChange={v => onUpdateNonSeatEntryTicketType(entry.id, v)} isEn={isEn} />
+                {nonSeatEntries.length > 1 && (
+                  <button type="button" onClick={() => onRemoveNonSeatEntry(entry.id)} className="p-1 text-red-400 hover:bg-red-50 rounded">
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+            {!hasSeats && nonSeatEntries.length < 3 && (
+              <button type="button" onClick={onAddNonSeatEntry} className="w-full py-2 text-sky-500 text-sm hover:bg-sky-50 rounded-lg transition-colors">
+                + {isEn ? 'Add Ticket' : '添加票据'}
+              </button>
             )}
           </div>
-          {error && <p className="text-red-500 text-xs">{error}</p>}
+
+          {/* 联系信息 */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{isEn ? 'Contact Info' : '联系信息'}</h3>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('name')}</label>
+              <input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder={t('enter_name')}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('phone')}</label>
+              <input
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                placeholder={t('enter_phone')}
+                type="tel"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-sky-400"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{isEn ? 'Note (Optional)' : '备注（选填）'}</label>
+              <textarea
+                value={noteContent}
+                onChange={e => {
+                  const newValue = e.target.value;
+                  const locale: 'zh' | 'en' = isEn ? 'en' : 'zh';
+                  let finalValue = newValue;
+                  if (locale === 'zh') {
+                    const validation = validateRemark(newValue, 'zh');
+                    if (!validation.valid) finalValue = truncateRemark(newValue, 'zh');
+                  } else {
+                    if (newValue.split(/\s+/).filter(w => w.length > 0).length > 20 || newValue.length > 120) {
+                      finalValue = truncateRemark(newValue, 'en');
+                    }
+                  }
+                  setNoteContent(finalValue);
+                  const limit = getRemarkLimit(finalValue, locale);
+                  setNoteLimit(limit);
+                  if (locale === 'en') setEnglishCharLimit(getEnglishCharLimit(finalValue));
+                  const validation = validateRemark(finalValue, locale);
+                  setNoteValidationError(validation.valid ? '' : validation.message);
+                }}
+                placeholder={isEn ? 'Any special requirements...' : '如有特殊需求请在此填写...'}
+                rows={2}
+                maxLength={isEn ? 120 : 30}
+                className={`w-full border rounded-xl px-4 py-2.5 text-sm focus:outline-none resize-none ${
+                  noteValidationError ? 'border-red-400 focus:ring-red-400' : 'border-gray-200 focus:ring-sky-400'
+                }`}
+              />
+              {noteValidationError && <p className="text-xs text-red-500 mt-1">{noteValidationError}</p>}
+            </div>
+            {error && <p className="text-red-500 text-sm">{error}</p>}
+          </div>
+
+          {/* 温馨提示 */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <p className="text-xs text-amber-700 leading-relaxed">{t('ticket_only_valid')}</p>
+          </div>
         </div>
 
-        {userId && (
-          <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Coins size={18} className="text-amber-500" />
-              <div>
-                <p className="text-xs text-amber-700">{isEn ? 'Available Balance' : '可用余额'}</p>
-                <p className="font-bold text-amber-600">
-                  {balanceLoading ? '...' : `${balance.toFixed(2)}`} L-Coin
-                </p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500">{isEn ? 'Total' : '合计'}</p>
-              <p className={`font-bold ${balance >= totalPrice ? 'text-emerald-600' : 'text-red-500'}`}>
+        {/* 底部操作栏 - 电商结算页风格 */}
+        <div className="bg-white border-t border-gray-200 px-4 py-3 safe-area-bottom">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <p className="text-xs text-gray-500">{isEn ? 'Total' : '应付总额'}</p>
+              <p className="text-xl font-bold text-amber-500 flex items-center gap-1">
+                <Coins size={18} />
                 {totalPrice.toFixed(2)} L-Coin
               </p>
             </div>
+            <button
+              type="submit"
+              disabled={submitting || (userId && balance < totalPrice)}
+              className={`px-8 py-3 rounded-full font-bold text-base transition-all shadow-lg active:scale-95 ${
+                userId && balance < totalPrice
+                  ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-amber-500 to-amber-400 text-white hover:from-amber-400 hover:to-amber-300'
+              }`}
+            >
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  {isEn ? 'Processing...' : '处理中...'}
+                </span>
+              ) : (
+                totalPrice > 0 
+                  ? (isEn ? 'Submit Order & Pay' : '提交订单并支付')
+                  : (isEn ? 'Book Now' : '立即预约')
+              )}
+            </button>
           </div>
-        )}
-
-        <div className="bg-amber-50 border border-amber-100 rounded-2xl px-4 py-3">
-          <p className="text-xs text-amber-700 leading-relaxed">{t('ticket_only_valid')}</p>
         </div>
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-400 hover:to-cyan-400 disabled:opacity-60 text-white font-bold py-4 rounded-2xl transition-all shadow-md hover:shadow-lg active:scale-[0.98] text-base flex items-center justify-center gap-2"
-        >
-          {submitting ? (
-            <>
-              <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              {isEn ? `Booking ${progress.done + 1}/${progress.total}...` : `正在预订 ${progress.done + 1}/${progress.total}...`}
-            </>
-          ) : (
-            `${t('book_now')} (${totalOrders})`
-          )}
-        </button>
       </form>
     </div>
   );
