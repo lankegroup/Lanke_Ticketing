@@ -210,31 +210,8 @@ export function renderTicketToCanvas(p: TicketParams): void {
     badgeY += BH + 6 * D;
   }
 
-  function drawTicketTypeBadge(cnText: string, enText: string) {
-    const TBW = 160 * D;
-    const TBH = 54 * D;
-    const TBX = W - PAD - TBW;
-    
-    ctx.fillStyle = '#0ea5e9';
-    ctx.beginPath();
-    ctx.roundRect(TBX, badgeY, TBW, TBH, 10 * D);
-    ctx.fill();
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${22 * D}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(cnText, TBX + TBW / 2, badgeY + 24 * D);
-    
-    ctx.font = `bold ${16 * D}px sans-serif`;
-    ctx.fillText(enText, TBX + TBW / 2, badgeY + 44 * D);
-    
-    ctx.textAlign = 'left';
-    badgeY += TBH + 6 * D;
-  }
-
   if (p.isReprint)       drawBadge('补打', '#475569');
   if (p.isSupplementary) drawBadge('补票', '#f97316');
-  if (p.ticketType)      drawTicketTypeBadge(ticketTypeCn[p.ticketType], ticketTypeEn[p.ticketType]);
 
   // ── Header ───────────────────────────────────────────────────────────
   const cnNameSize = adaptedCnSize(ctx, p.sessionName, 40 * D, sessionNameEn, 22 * D);
@@ -257,7 +234,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillText(subLabelEn, PAD, SUBLABEL_EN_Y);
 
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#9ca3af';
+  ctx.strokeStyle = '#6b7280';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, DIVIDER_Y);
@@ -319,13 +296,36 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // Perforation divider
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#9ca3af';
+  ctx.strokeStyle = '#6b7280';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, iy);
   ctx.lineTo(W - PAD, iy);
   ctx.stroke();
   ctx.setLineDash([]);
+
+  // ── Ticket Type Badge (near bottom divider) ──────────────────────────
+  if (p.ticketType) {
+    const TBW = 130 * D;
+    const TBH = 62 * D;
+    const TBX = W - PAD - TBW;
+    const TBY = iy + 6 * D;
+    
+    ctx.fillStyle = '#0ea5e9';
+    ctx.beginPath();
+    ctx.roundRect(TBX, TBY, TBW, TBH, 12 * D);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${25 * D}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(ticketTypeCn[p.ticketType], TBX + TBW / 2, TBY + 26 * D);
+    
+    ctx.font = `bold ${18 * D}px sans-serif`;
+    ctx.fillText(ticketTypeEn[p.ticketType], TBX + TBW / 2, TBY + 50 * D);
+    
+    ctx.textAlign = 'left';
+  }
 
   // ── QR code ──────────────────────────────────────────────────────────
   const qrY = iy + 24 * D;
