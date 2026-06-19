@@ -3,6 +3,76 @@
 -- 请在 Supabase SQL 编辑器中执行此文件
 -- ============================================================
 
+-- 先创建所有可能缺失的表
+CREATE TABLE IF NOT EXISTS lcoin_accounts (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  balance    NUMERIC(18,4) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS lcoin_transactions (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id         UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  transaction_type TEXT NOT NULL,
+  amount          NUMERIC(18,4) NOT NULL,
+  balance_before  NUMERIC(18,4),
+  balance_after   NUMERIC(18,4),
+  session_id      UUID REFERENCES sessions(id) ON DELETE SET NULL,
+  operator_type   TEXT DEFAULT 'system',
+  description     TEXT,
+  reference_id    UUID,
+  payment_method  TEXT DEFAULT 'lcoin',
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS lcoin_packages (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name        TEXT NOT NULL,
+  price_rmb   NUMERIC(10,2) NOT NULL,
+  lcoin_amount NUMERIC(18,4) NOT NULL,
+  bonus       NUMERIC(18,4) NOT NULL DEFAULT 0,
+  is_active   BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order  INT DEFAULT 0,
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS lcoin_exchange_rate (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  lcoin_to_rmb  NUMERIC(10,4) NOT NULL DEFAULT 1.0,
+  rmb_to_lcoin  NUMERIC(10,4) NOT NULL DEFAULT 1.0,
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS order_audit_logs (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id        UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  registration_id UUID,
+  action          TEXT NOT NULL,
+  note            TEXT,
+  created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type       TEXT NOT NULL DEFAULT 'info',
+  title      TEXT NOT NULL,
+  message    TEXT NOT NULL,
+  is_read    BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS admin_profiles (
+  id       UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+INSERT INTO lcoin_exchange_rate (lcoin_to_rmb, rmb_to_lcoin)
+SELECT 1.0, 1.0
+WHERE NOT EXISTS (SELECT 1 FROM lcoin_exchange_rate);
+
 -- ── 1. lcoin_accounts RLS 策略 ──────────────────────────────
 ALTER TABLE IF EXISTS lcoin_accounts ENABLE ROW LEVEL SECURITY;
 
@@ -161,13 +231,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.cancel_ticket(UUID, UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.cancel_ticket(UUID, UUID) TO authenticated;
 
--- ── 15. 确保 admin_profiles 表存在并有权限 ──────────────────
-CREATE TABLE IF NOT EXISTS admin_profiles (
-  id       UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  username TEXT NOT NULL UNIQUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
+-- ── 15. admin_profiles RLS 策略 ──────────────────────────────
 ALTER TABLE IF EXISTS admin_profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE POLICY "admin_profile_select_own" ON admin_profiles
