@@ -233,8 +233,31 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.font = `${20 * D}px sans-serif`;
   ctx.fillText(subLabelEn, PAD, SUBLABEL_EN_Y);
 
+  // Ticket Type Badge (right of sublabel)
+  if (p.ticketType) {
+    const TT_BW = 130 * D;
+    const TT_BH = 62 * D;
+    const TT_BX = W - PAD - TT_BW;
+    const TT_BY = SUBLABEL_CN_Y - 28 * D;
+    
+    ctx.fillStyle = '#0ea5e9';
+    ctx.beginPath();
+    ctx.roundRect(TT_BX, TT_BY, TT_BW, TT_BH, 12 * D);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${25 * D}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(ticketTypeCn[p.ticketType], TT_BX + TT_BW / 2, TT_BY + 26 * D);
+    
+    ctx.font = `bold ${18 * D}px sans-serif`;
+    ctx.fillText(ticketTypeEn[p.ticketType], TT_BX + TT_BW / 2, TT_BY + 50 * D);
+    
+    ctx.textAlign = 'left';
+  }
+
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#6b7280';
+  ctx.strokeStyle = '#4b5563';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, DIVIDER_Y);
@@ -296,36 +319,13 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // Perforation divider
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#6b7280';
+  ctx.strokeStyle = '#4b5563';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, iy);
   ctx.lineTo(W - PAD, iy);
   ctx.stroke();
   ctx.setLineDash([]);
-
-  // ── Ticket Type Badge (near bottom divider) ──────────────────────────
-  if (p.ticketType) {
-    const TBW = 130 * D;
-    const TBH = 62 * D;
-    const TBX = W - PAD - TBW;
-    const TBY = iy + 6 * D;
-    
-    ctx.fillStyle = '#0ea5e9';
-    ctx.beginPath();
-    ctx.roundRect(TBX, TBY, TBW, TBH, 12 * D);
-    ctx.fill();
-    
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${25 * D}px sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.fillText(ticketTypeCn[p.ticketType], TBX + TBW / 2, TBY + 26 * D);
-    
-    ctx.font = `bold ${18 * D}px sans-serif`;
-    ctx.fillText(ticketTypeEn[p.ticketType], TBX + TBW / 2, TBY + 50 * D);
-    
-    ctx.textAlign = 'left';
-  }
 
   // ── QR code ──────────────────────────────────────────────────────────
   const qrY = iy + 24 * D;
