@@ -233,12 +233,13 @@ function RegistrationsList() {
   }
 
   async function cancelReg(id: string) {
-    const { data, error } = await supabase.rpc('cancel_ticket', {
+    const { data, error } = await supabase.rpc('admin_cancel_registration', {
       p_registration_id: id,
-      p_user_id: null,
     });
     if (error || (data as any)?.success === false) {
-      showToast(t('operation_failed'), 'error');
+      const errMsg = error ? (typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)) : '';
+      const funcErr = (data as any)?.error || '';
+      showToast(errMsg || funcErr || t('operation_failed'), 'error');
     } else {
       showToast(t('cancel_success'));
     }
