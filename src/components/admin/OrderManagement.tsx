@@ -5,7 +5,7 @@ import { validateRemark, truncateRemark } from '../../lib/remarkValidator';
 import { useAuth } from '../../contexts/AuthContext';
 import { Plus, Trash2, Calendar, Users, Clock, Filter, Search, X, CheckCircle, AlertCircle, Edit3, ArrowLeft, Image, LayoutGrid, Ban, RefreshCw, Printer, Ticket, AlertTriangle } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { renderTicketToCanvas, downloadTicket, formatOrderTime } from '../../lib/ticketGenerator';
+
 import ConfirmDialog from '../ConfirmDialog';
 import Toast from '../Toast';
 import PrintConfirmModal, { PrintConfirmResult } from './PrintConfirmModal';
@@ -148,75 +148,10 @@ function RegistrationsList() {
   }
 
   async function handlePrintConfirm(result: PrintConfirmResult) {
+    // 票面生成功能已禁用
     setShowPrintModal(false);
-    const reg = pendingPrintReg;
-    if (!reg) return;
-    setPendingPrintReg(null);
-
-    setPrintingReg(reg);
-    await new Promise(resolve => setTimeout(resolve, 150));
-
-    try {
-      const currentReprintCount = (reg as any).reprint_count ?? 0;
-      const newReprintCount = currentReprintCount + 1;
-
-      setRegs(prev => prev.map(r => r.id === reg.id ? { ...r, reprint_count: newReprintCount } as any : r));
-
-      (async () => {
-        try {
-          await supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id });
-        } catch {}
-        try {
-          await supabase.from('registrations').update({
-            service_fee: result.serviceFee,
-            paid_at: result.paidAt,
-            printed_at: result.printedAt,
-          }).eq('id', reg.id);
-        } catch {}
-      })();
-
-      const canvas = printCanvasRef.current;
-      if (!canvas) {
-        console.error('Print error: canvas is null');
-        showToast('打印失败：画布未就绪', 'error');
-        return;
-      }
-
-      const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
-      const isReprint = newReprintCount > 1;
-      const s = reg.sessions as any;
-
-      renderTicketToCanvas({
-        canvas, qrEl,
-        ticketCode:        reg.ticket_code,
-        sessionName:       s?.name ?? '—',
-        sessionDate:       s?.session_date ?? '—',
-        startTime:         s?.start_time ?? '00:00',
-        endTime:           s?.end_time ?? '00:00',
-        verificationStart: s?.verification_start,
-        verificationEnd:   s?.verification_end,
-        name:              reg.name,
-        seatName:          (reg as any).seats?.seat_name,
-        ticketType:        reg.ticket_type,
-        operatorName:      '001',
-        orderTime:         formatOrderTime(new Date(reg.created_at)),
-        isSupplementary:   reg.is_supplementary,
-        isReprint,
-        orderStatus:       getDisplayStatus(reg),
-        ticketPrice:       s?.ticket_price,
-        serviceFee:        result.serviceFee,
-        paidAt:            result.paidAt,
-        printedAt:         result.printedAt,
-        paymentMethod:     (reg as any).payment_method as 'rmb' | 'lcoin' | 'mixed' || 'rmb',
-      });
-
-      downloadTicket(canvas, reg.ticket_code);
-    } catch (err) {
-      console.error('Print error:', err);
-      showToast('打印失败，请重试', 'error');
-    } finally {
-      setPrintingReg(null);
-    }
+    setPrintingReg(null);
+    return;
   }
 
   async function cancelReg(id: string) {
