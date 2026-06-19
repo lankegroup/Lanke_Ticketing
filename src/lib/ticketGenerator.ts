@@ -211,22 +211,22 @@ export function renderTicketToCanvas(p: TicketParams): void {
   }
 
   function drawTicketTypeBadge(cnText: string, enText: string) {
-    const TBW = 100 * D;
-    const TBH = 34 * D;
+    const TBW = 160 * D;
+    const TBH = 54 * D;
     const TBX = W - PAD - TBW;
     
     ctx.fillStyle = '#0ea5e9';
     ctx.beginPath();
-    ctx.roundRect(TBX, badgeY, TBW, TBH, 7 * D);
+    ctx.roundRect(TBX, badgeY, TBW, TBH, 10 * D);
     ctx.fill();
     
     ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${14 * D}px sans-serif`;
+    ctx.font = `bold ${22 * D}px sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(cnText, TBX + TBW / 2, badgeY + 16 * D);
+    ctx.fillText(cnText, TBX + TBW / 2, badgeY + 24 * D);
     
-    ctx.font = `bold ${10 * D}px sans-serif`;
-    ctx.fillText(enText, TBX + TBW / 2, badgeY + 28 * D);
+    ctx.font = `bold ${16 * D}px sans-serif`;
+    ctx.fillText(enText, TBX + TBW / 2, badgeY + 44 * D);
     
     ctx.textAlign = 'left';
     badgeY += TBH + 6 * D;
@@ -377,12 +377,12 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // Copyright line — Chinese
   ctx.fillStyle = '#78716c';
-  ctx.font = `${24 * D}px sans-serif`;
+  ctx.font = `${20 * D}px sans-serif`;
   ctx.fillText('版权所有 © 2026 兰克集团. 保留所有权利。', W / 2, fBase + 218 * D);
   // Copyright line — English
   ctx.fillStyle = '#a8a29e';
-  ctx.font = `${22 * D}px sans-serif`;
-  ctx.fillText('Copyright © 2026 Lanke Group. All rights reserved.', W / 2, fBase + 248 * D);
+  ctx.font = `${18 * D}px sans-serif`;
+  ctx.fillText('Copyright © 2026 Lanke Group. All rights reserved.', W / 2, fBase + 240 * D);
 
   ctx.textAlign = 'left';
 }
