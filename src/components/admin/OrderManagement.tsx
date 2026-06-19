@@ -1834,30 +1834,44 @@ function SessionEditor({
       concession_price: concessionPrice || null,
       vip_price: vipPrice || null,
       default_service_fee: defaultServiceFee,
-      refund_penalty_rules: refundRules.length > 0 ? refundRules : null,
     };
 
-    let sessionId = savedSessionId;
+    async function saveWithRules(includeRules: boolean) {
+      const savePayload = { ...payload };
+      if (includeRules) {
+        savePayload.refund_penalty_rules = refundRules.length > 0 ? refundRules : null;
+      }
 
-    if (isNew || !sessionId) {
-      payload.capacity = availableStock;
-      const { data, error } = await supabase.from('sessions').insert(payload).select('id').single();
-      if (error || !data?.id) {
-        setGeneralError('保存场次失败：' + (error?.message ?? '未知错误'));
-        scrollToError('top');
-        setSaving(false);
-        return;
+      if (isNew || !sessionId) {
+        savePayload.capacity = availableStock;
+        const { data, error } = await supabase.from('sessions').insert(savePayload).select('id').single();
+        if (error) return { success: false, error };
+        if (!data?.id) return { success: false, error: { message: '保存场次失败' } };
+        return { success: true, sessionId: data.id };
+      } else {
+        const { error } = await supabase.from('sessions').update(savePayload).eq('id', sessionId);
+        if (error) return { success: false, error };
+        return { success: true, sessionId };
       }
-      sessionId = data.id;
+    }
+
+    let sessionId = savedSessionId;
+    let result = await saveWithRules(true);
+
+    if (!result.success && result.error?.message?.includes('column') && result.error?.message?.includes('refund_penalty_rules')) {
+      result = await saveWithRules(false);
+    }
+
+    if (!result.success) {
+      setGeneralError('保存失败：' + (result.error?.message ?? '未知错误'));
+      scrollToError('top');
+      setSaving(false);
+      return;
+    }
+
+    sessionId = result.sessionId;
+    if (!savedSessionId) {
       setSavedSessionId(sessionId);
-    } else {
-      const { error } = await supabase.from('sessions').update(payload).eq('id', sessionId);
-      if (error) {
-        setGeneralError('保存失败：' + error.message);
-        scrollToError('top');
-        setSaving(false);
-        return;
-      }
     }
 
     // Only regenerate seats when dimensions actually changed (or it's a new session)

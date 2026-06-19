@@ -315,7 +315,9 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION expire_past_tickets() TO service_role;
-
+-- 执行迁移文件内容
+-- 文件路径：supabase/migrations/20260621000006_refund_penalty_system.sql
+-- 或直接复制粘贴整个迁移文件内容执行
 -- 8. deduct_lcoin - 扣除兰克币
 DROP FUNCTION IF EXISTS public.deduct_lcoin(uuid,numeric,text,uuid);
 
