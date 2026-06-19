@@ -74,6 +74,7 @@ function RegistrationsList() {
   const [printingReg, setPrintingReg] = useState<Registration | null>(null);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [pendingPrintReg, setPendingPrintReg] = useState<Registration | null>(null);
+  const [printRegUserBalance, setPrintRegUserBalance] = useState<number>(0);
   const [showReprintConfirm, setShowReprintConfirm] = useState(false);
   const [reprintCountForConfirm, setReprintCountForConfirm] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
@@ -124,9 +125,16 @@ function RegistrationsList() {
     setTimeout(() => setToast(null), 3000);
   }
 
-  function requestPrint(reg: Registration) {
+  async function requestPrint(reg: Registration) {
     const reprintCount = (reg as any).reprint_count ?? 0;
     const nextCount = reprintCount + 1;
+    // 获取用户兰克币余额
+    if (reg.user_id) {
+      const { data: balData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: reg.user_id });
+      setPrintRegUserBalance(typeof balData === 'number' ? balData : 0);
+    } else {
+      setPrintRegUserBalance(0);
+    }
     if (nextCount >= 2) {
       setPendingPrintReg(reg);
       setReprintCountForConfirm(nextCount);
@@ -167,11 +175,15 @@ function RegistrationsList() {
           await supabase.rpc('admin_increment_reprint_count', { p_registration_id: reg.id });
         } catch {}
         try {
-          await supabase.from('registrations').update({
+          const updateData: any = {
             service_fee: result.serviceFee,
             paid_at: result.paidAt,
             printed_at: result.printedAt,
-          }).eq('id', reg.id);
+          };
+          if (result.paymentMethod) {
+            updateData.payment_method = result.paymentMethod;
+          }
+          await supabase.from('registrations').update(updateData).eq('id', reg.id);
         } catch {}
       })();
 
@@ -913,6 +925,9 @@ function RegistrationsList() {
           ticketCode={pendingPrintReg?.ticket_code}
           ticketPrice={(pendingPrintReg?.sessions as any)?.ticket_price}
           defaultServiceFee={(pendingPrintReg?.sessions as any)?.default_service_fee ?? 0}
+          userId={pendingPrintReg?.user_id || undefined}
+          userBalance={printRegUserBalance}
+          sessionId={pendingPrintReg?.session_id}
           onConfirm={handlePrintConfirm}
           onCancel={() => { setShowPrintModal(false); setPendingPrintReg(null); }}
         />

@@ -1,37 +1,75 @@
 import { useState } from 'react';
 import { X, Printer, CheckCircle2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 export interface PrintConfirmResult {
   serviceFee: number;
   paidAt: string;
   printedAt: string;
+  paymentMethod: 'rmb' | 'lcoin';
 }
 
 export default function PrintConfirmModal({
   ticketCode,
   ticketPrice,
   defaultServiceFee = 0,
+  userId,
+  userBalance = 0,
+  sessionId,
   onConfirm,
   onCancel,
 }: {
   ticketCode?: string;
   ticketPrice?: number;
   defaultServiceFee?: number;
+  userId?: string;
+  userBalance?: number;
+  sessionId?: string;
   onConfirm: (result: PrintConfirmResult) => void;
   onCancel: () => void;
 }) {
   const [feeInput, setFeeInput] = useState(defaultServiceFee > 0 ? String(defaultServiceFee) : '0');
   const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<'rmb' | 'lcoin'>('rmb');
+  const [deducting, setDeducting] = useState(false);
+  const [deductError, setDeductError] = useState('');
 
   const fee = parseFloat(feeInput) || 0;
   const total = (ticketPrice ?? 0) + fee;
+  const canUseLcoin = !!userId && userBalance >= total;
 
-  function handleConfirm() {
+  async function handleConfirm() {
     if (!paymentConfirmed) return;
+    setDeductError('');
+
+    // 兰克币支付：先扣除兰克币
+    if (paymentMethod === 'lcoin' && userId && total > 0) {
+      if (userBalance < total) {
+        setDeductError(`余额不足！当前余额 ${userBalance} LC，需支付 ${total} LC`);
+        return;
+      }
+      setDeducting(true);
+      const deductResult = await supabase.rpc('create_lcoin_transaction', {
+        p_user_id: userId,
+        p_transaction_type: 'purchase',
+        p_amount: total,
+        p_session_id: sessionId || null,
+        p_operator_type: 'front_desk',
+        p_description: `打印票面扣款：${ticketCode || ''}`,
+        p_payment_method: 'lcoin',
+      });
+      setDeducting(false);
+      const deductData = deductResult.data as any;
+      if (!deductData?.success) {
+        setDeductError(deductData?.error || '兰克币扣款失败，请重试');
+        return;
+      }
+    }
+
     const now = new Date();
     const pad = (n: number) => String(n).padStart(2, '0');
     const ts = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-    onConfirm({ serviceFee: fee, paidAt: ts, printedAt: ts });
+    onConfirm({ serviceFee: fee, paidAt: ts, printedAt: ts, paymentMethod });
   }
 
   return (
@@ -91,10 +129,49 @@ export default function PrintConfirmModal({
             {ticketPrice !== undefined && (
               <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
                 <span className="text-sm font-semibold text-gray-700">合计</span>
-                <span className="font-bold text-emerald-700 text-lg">¥{total.toFixed(2)}</span>
+                <span className="font-bold text-emerald-700 text-lg">
+                  {paymentMethod === 'lcoin' ? `${total.toFixed(2)} LC` : `¥${total.toFixed(2)}`}
+                </span>
               </div>
             )}
           </div>
+
+          {/* Payment method selection */}
+          {userId && (
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold text-gray-600">支付方式</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('rmb')}
+                  className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                    paymentMethod === 'rmb'
+                      ? 'border-emerald-400 bg-emerald-50 text-emerald-700'
+                      : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+                  }`}
+                >
+                  ¥ 人民币
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('lcoin')}
+                  disabled={!canUseLcoin}
+                  className={`flex-1 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${
+                    paymentMethod === 'lcoin'
+                      ? 'border-amber-400 bg-amber-50 text-amber-700'
+                      : canUseLcoin
+                        ? 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+                        : 'border-gray-100 bg-gray-50 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  LC 兰克币
+                  <span className="block text-[10px] font-normal mt-0.5">
+                    {canUseLcoin ? `余额 ${userBalance} LC` : '余额不足'}
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Payment confirmation */}
           <button
@@ -112,9 +189,13 @@ export default function PrintConfirmModal({
               {paymentConfirmed && <CheckCircle2 size={12} className="text-white" />}
             </div>
             <span className={`text-sm font-medium ${paymentConfirmed ? 'text-emerald-700' : 'text-gray-600'}`}>
-              确认已收到付款
+              {paymentMethod === 'lcoin' ? '确认从账户扣除兰克币' : '确认已收到付款'}
             </span>
           </button>
+
+          {deductError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-600">{deductError}</div>
+          )}
         </div>
 
         <div className="px-5 pb-5 flex gap-3">
@@ -128,14 +209,15 @@ export default function PrintConfirmModal({
           <button
             type="button"
             onClick={handleConfirm}
-            disabled={!paymentConfirmed}
+            disabled={!paymentConfirmed || deducting}
             className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-              paymentConfirmed
+              paymentConfirmed && !deducting
                 ? 'bg-emerald-500 hover:bg-emerald-400 text-white shadow-sm'
                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
             }`}
           >
-            <Printer size={14} /> 确认已付款并生成
+            <Printer size={14} />
+            {deducting ? '扣款中...' : paymentMethod === 'lcoin' ? '确认扣款并生成' : '确认已付款并生成'}
           </button>
         </div>
       </div>

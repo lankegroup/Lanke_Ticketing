@@ -62,8 +62,8 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
   };
 
   const fetchCustomerBalance = async () => {
-    const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: user.id });
-    setCustomerBalance(Number(balData) || 0);
+    const { data: balData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: user.id });
+    setCustomerBalance(typeof balData === 'number' ? balData : 0);
   };
 
   useEffect(() => {
@@ -252,15 +252,19 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       return;
     }
 
-    const deductResult = await supabase.rpc('lcoin_transaction', {
+    const deductResult = await supabase.rpc('create_lcoin_transaction', {
       p_user_id: user.id,
+      p_transaction_type: 'purchase',
       p_amount: ticketPrice,
+      p_session_id: selectedSession.id,
+      p_operator_type: 'admin',
       p_description: `代客预约：${selectedSession.name}`,
-      p_type: 'purchase',
+      p_payment_method: 'lcoin',
     });
 
-    if (!deductResult.data?.success) {
-      setError('扣款失败，请重试');
+    const deductData = deductResult.data as any;
+    if (!deductData?.success) {
+      setError(deductData?.error || '扣款失败，请重试');
       setSubmitting(false);
       return;
     }
@@ -282,11 +286,14 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
     const rpcResult = bookResult.data as any;
 
     if (bookResult.error || !rpcResult?.success) {
-      await supabase.rpc('lcoin_transaction', {
+      await supabase.rpc('create_lcoin_transaction', {
         p_user_id: user.id,
+        p_transaction_type: 'refund',
         p_amount: ticketPrice,
+        p_session_id: selectedSession.id,
+        p_operator_type: 'admin',
         p_description: `退款：代客预约失败 ${selectedSession.name}`,
-        p_type: 'recharge',
+        p_payment_method: 'lcoin',
       });
       const msg = rpcResult?.error;
       if (msg === 'sold_out') setError('该场次已售罄');

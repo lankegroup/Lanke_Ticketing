@@ -851,14 +851,18 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     if (!p) return;
     setPendingPrint(null);
 
-    // Write service_fee, paid_at, printed_at to DB for all tickets
+    // Write service_fee, paid_at, printed_at, payment_method to DB for all tickets
     for (const t of successTickets) {
       if (t.registration_id) {
-        await supabase.from('registrations').update({
+        const updateData: any = {
           service_fee: result.serviceFee,
           paid_at: result.paidAt,
           printed_at: result.printedAt,
-        }).eq('id', t.registration_id);
+        };
+        if (result.paymentMethod) {
+          updateData.payment_method = result.paymentMethod;
+        }
+        await supabase.from('registrations').update(updateData).eq('id', t.registration_id);
       }
     }
 
@@ -1344,6 +1348,9 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
           ticketCode={pendingPrint?.ticketCode}
           ticketPrice={selectedSession?.ticket_price}
           defaultServiceFee={selectedSession?.default_service_fee ?? 0}
+          userId={matchedUserId || undefined}
+          userBalance={customerBalance}
+          sessionId={selectedSession?.id}
           onConfirm={handlePrintConfirm}
           onCancel={() => { setShowPrintModal(false); setPendingPrint(null); }}
         />
