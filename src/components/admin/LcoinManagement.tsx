@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, uploadImageViaFunction } from '../../lib/supabase';
-import { X, Search, Plus, Minus, User, Package, History, Save, Trash2, AlertCircle, Settings, Image } from 'lucide-react';
+import { X, Search, Plus, Minus, User, Package, History, Save, Trash2, AlertCircle, Settings, Image, CheckCircle, XCircle } from 'lucide-react';
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 
@@ -41,6 +41,17 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
   const [rechargeSettingsId, setRechargeSettingsId] = useState<string | null>(null);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [exchangeRate, setExchangeRate] = useState('1.00');
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning'; visible: boolean }>({
+    message: '',
+    type: 'success',
+    visible: false,
+  });
+
+  function showToast(message: string, type: 'success' | 'error' | 'warning' = 'success') {
+    setToast({ message, type, visible: true });
+    setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
+  }
 
   useEffect(() => {
     fetchUsers();
@@ -158,9 +169,9 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
         }).select('id').single();
         if (newSettings) setRechargeSettingsId(newSettings.id);
       }
-      alert(isEn ? 'Saved successfully' : '保存成功');
+      showToast(isEn ? 'Saved successfully' : '保存成功');
     } catch {
-      alert(isEn ? 'Save failed' : '保存失败');
+      showToast(isEn ? 'Save failed' : '保存失败', 'error');
     }
     setSavingConfig(false);
   }
@@ -172,10 +183,10 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
     const { url, error } = await uploadImageViaFunction(file, 'recharge_banners');
     setUploadingBanner(false);
     if (error) {
-      alert(isEn ? 'Image upload failed' : '图片上传失败');
+      showToast(isEn ? 'Image upload failed' : '图片上传失败', 'error');
     } else if (url) {
       setBannerImage(url);
-      alert(isEn ? 'Image uploaded successfully' : '图片上传成功');
+      showToast(isEn ? 'Image uploaded successfully' : '图片上传成功');
     }
   }
 
@@ -198,12 +209,12 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
       
       userBalances.set(selectedUser.id, (userBalances.get(selectedUser.id) || 0) + (adjustType === 'add' ? amount : -amount));
       setUserBalances(new Map(userBalances));
-      alert(adjustType === 'add' ? (isEn ? 'Recharge successful' : '充值成功') : (isEn ? 'Deduction successful' : '扣款成功'));
+      showToast(adjustType === 'add' ? (isEn ? 'Recharge successful' : '充值成功') : (isEn ? 'Deduction successful' : '扣款成功'));
       setShowAdjustModal(false);
       setAdjustAmount('');
       setAdjustReason('');
     } catch (err: any) {
-      alert(err.message || (isEn ? 'Operation failed' : '操作失败'));
+      showToast(err.message || (isEn ? 'Operation failed' : '操作失败'), 'error');
     }
     setAdjusting(false);
   }
@@ -237,9 +248,9 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
       setNewPackage({ name: '', name_en: '', price: '', lcoin_amount: '', description: '', description_en: '' });
       setEditingPackage(null);
       setShowPackageForm(false);
-      alert(isEn ? 'Saved successfully' : '保存成功');
+      showToast(isEn ? 'Saved successfully' : '保存成功');
     } catch {
-      alert(isEn ? 'Save failed' : '保存失败');
+      showToast(isEn ? 'Save failed' : '保存失败', 'error');
     }
     setSavingPackage(false);
   }
@@ -552,6 +563,19 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
             </button>
             <button onClick={() => setShowAdjustModal(false)} className="w-full py-2 text-gray-500 text-sm hover:text-gray-700">{isEn ? 'Cancel' : '取消'}</button>
           </div>
+        </div>
+      )}
+
+      {toast.visible && (
+        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg flex items-center gap-2 transition-all duration-300 ${
+          toast.type === 'success' ? 'bg-emerald-500 text-white' :
+          toast.type === 'error' ? 'bg-red-500 text-white' :
+          'bg-amber-500 text-white'
+        }`}>
+          {toast.type === 'success' && <CheckCircle size={18} />}
+          {toast.type === 'error' && <XCircle size={18} />}
+          {toast.type === 'warning' && <AlertCircle size={18} />}
+          <span className="text-sm font-medium">{toast.message}</span>
         </div>
       )}
     </div>

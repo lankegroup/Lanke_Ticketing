@@ -656,8 +656,8 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
       setMatchedUserId(data.id);
       setMatchedUserName(data.display_name);
       if (!name.trim() && data.display_name) setName(data.display_name);
-      const { data: balData } = await supabase.from('user_balances').select('balance').eq('user_id', data.id).maybeSingle();
-      setCustomerBalance(Number(balData?.balance) || 0);
+      const { data: balData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: data.id });
+      setCustomerBalance(typeof balData === 'number' ? balData : 0);
     }
   }
 
@@ -723,35 +723,22 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
         return;
       }
 
-      const { data: currentBalData } = await supabase.from('user_balances').select('balance').eq('user_id', matchedUserId).maybeSingle();
-      const currentBal = Number(currentBalData?.balance) || 0;
-      
-      if (currentBal < lcoinPayAmount) {
-        setError(`余额不足！当前余额 ${currentBal} L-Coin，需支付 ${lcoinPayAmount} L-Coin`);
-        setSubmitting(false);
-        return;
-      }
-
-      const updateResult = await supabase.from('user_balances').update({ 
-        balance: currentBal - lcoinPayAmount,
-        updated_at: new Date().toISOString()
-      }).eq('user_id', matchedUserId);
-
-      if (updateResult.error) {
-        setError('扣款失败，请重试');
-        setSubmitting(false);
-        return;
-      }
-
-      await supabase.from('balance_transactions').insert({
-        user_id: matchedUserId,
-        transaction_type: 'purchase',
-        amount: lcoinPayAmount,
-        balance_before: currentBal,
-        balance_after: currentBal - lcoinPayAmount,
-        description: `购票：${selectedSession.name}`,
-        reference_id: selectedSession.id,
+      const deductResult = await supabase.rpc('create_lcoin_transaction', {
+        p_user_id: matchedUserId,
+        p_transaction_type: 'purchase',
+        p_amount: lcoinPayAmount,
+        p_session_id: selectedSession.id,
+        p_operator_type: 'front_desk',
+        p_description: `购票：${selectedSession.name}`,
+        p_payment_method: 'lcoin',
       });
+
+      const resultData = deductResult.data as any;
+      if (!resultData?.success) {
+        setError(resultData?.error || '扣款失败，请重试');
+        setSubmitting(false);
+        return;
+      }
     }
 
     const itemsToBook: { seatId: string | null; ticketType: TicketType }[] = selectedSession.has_seating_chart
@@ -787,8 +774,8 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     setStep('done');
 
     if ((paymentMethod === 'lcoin' || (paymentMethod === 'rmb' && lcoinPayAmount > 0)) && matchedUserId) {
-      const { data: balData } = await supabase.from('user_balances').select('balance').eq('user_id', matchedUserId).maybeSingle();
-      setCustomerBalance(Number(balData?.balance) || 0);
+      const { data: balData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: matchedUserId });
+      setCustomerBalance(typeof balData === 'number' ? balData : 0);
     }
 
     if (results.length > 0) {
