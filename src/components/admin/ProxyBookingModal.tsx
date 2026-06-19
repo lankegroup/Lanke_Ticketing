@@ -301,7 +301,16 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       if (msg === 'sold_out') setError('该场次已售罄');
       else if (msg === 'seat_taken') setError('座位已被预订，请返回重新选择');
       else if (msg === 'missing_params') setError('该用户缺少手机号，请先完善用户信息');
-      else setError('预订失败：' + (msg || bookResult.error || '未知错误'));
+      else if (msg === 'session_not_found') setError('场次不存在');
+      else if (msg === 'session_inactive') setError('该场次已停用');
+      else if (msg === 'invalid_seat') setError('座位无效');
+      else if (msg === 'seat_blocked') setError('该座位已锁定，需强制预约');
+      else if (msg === 'unauthorized') setError('无权限执行此操作');
+      else if (msg === 'not_found') setError('记录不存在');
+      else {
+        const errDetail = bookResult.error ? (typeof bookResult.error === 'object' ? JSON.stringify(bookResult.error) : String(bookResult.error)) : '';
+        setError('预订失败：' + (msg || errDetail || '未知错误'));
+      }
       setSubmitting(false);
       return;
     }

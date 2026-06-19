@@ -977,13 +977,23 @@ function UserRescheduleModal({
       p_force: isForce,
     });
     setSubmitting(false);
-    if (err) { setError(err.message); return; }
+    if (err) {
+      const errMsg = typeof err === 'object' ? (err.message || JSON.stringify(err)) : String(err);
+      setError('换座失败：' + errMsg);
+      return;
+    }
     const d = data as any;
     if (!d?.success) {
       const msg = d?.error;
       if (msg === 'seat_taken') setError('该座位已被预订，请重新选择');
       else if (msg === 'seat_blocked') setError('该座位已屏蔽，请使用强制换座');
-      else setError(msg || '换座失败');
+      else if (msg === 'not_found') setError('订单不存在');
+      else if (msg === 'invalid_status') setError('订单状态无效，无法换座');
+      else if (msg === 'no_seat') setError('该订单无座位信息');
+      else if (msg === 'same_seat') setError('不能换到相同座位');
+      else if (msg === 'invalid_seat') setError('目标座位无效');
+      else if (msg === 'unauthorized') setError('无权限执行此操作');
+      else setError('换座失败：' + (msg || '未知错误'));
       return;
     }
     lockedSeatRef.current = null;

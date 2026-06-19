@@ -247,15 +247,22 @@ function RegistrationsList() {
   }
 
   async function adminDeleteReg(id: string) {
-    const { data, error } = await supabase.rpc('admin_delete_registration', {
-      p_registration_id: id,
-      p_note: 'Manual delete by admin',
-    });
-    if (error || (data as any)?.success === false) {
-      showToast(t('operation_failed'), 'error');
-    } else {
-      showToast(t('delete_success'));
-      setDetail(null);
+    try {
+      const { data, error } = await supabase.rpc('admin_delete_registration', {
+        p_registration_id: id,
+        p_note: 'Manual delete by admin',
+      });
+      if (error) {
+        const errMsg = typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error);
+        showToast('删除失败：' + errMsg, 'error');
+      } else if ((data as any)?.success === false) {
+        showToast('删除失败：' + ((data as any)?.error || '未知错误'), 'error');
+      } else {
+        showToast(t('delete_success'));
+        setDetail(null);
+      }
+    } catch (e: any) {
+      showToast('删除失败：' + (e?.message || String(e)), 'error');
     }
     setConfirmDelete(null);
     fetchData();
@@ -1069,13 +1076,23 @@ function AdminRescheduleModal({
       p_force: isForce,
     });
     setSubmitting(false);
-    if (err) { setError(err.message); return; }
+    if (err) {
+      const errMsg = typeof err === 'object' ? (err.message || JSON.stringify(err)) : String(err);
+      setError('换座失败：' + errMsg);
+      return;
+    }
     const d = data as any;
     if (!d?.success) {
       const msg = d?.error;
       if (msg === 'seat_taken') setError('该座位已被预订，请重新选择');
       else if (msg === 'seat_blocked') setError('该座位已屏蔽，请使用强制换座');
-      else setError(msg || '换座失败');
+      else if (msg === 'not_found') setError('订单不存在');
+      else if (msg === 'invalid_status') setError('订单状态无效，无法换座');
+      else if (msg === 'no_seat') setError('该订单无座位信息');
+      else if (msg === 'same_seat') setError('不能换到相同座位');
+      else if (msg === 'invalid_seat') setError('目标座位无效');
+      else if (msg === 'unauthorized') setError('无权限执行此操作');
+      else setError('换座失败：' + (msg || '未知错误'));
       return;
     }
     lockedSeatRef.current = null;

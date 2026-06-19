@@ -542,7 +542,28 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
 
     return () => {
       if (seatPollRef.current) clearInterval(seatPollRef.current);
+      lockedSeatRefs.current.forEach(seatId => {
+        supabase.rpc('unlock_seat', { p_seat_id: seatId });
+      });
+      lockedSeatRefs.current.clear();
     };
+  }, []);
+
+  // Release seats on page unload/refresh
+  useEffect(() => {
+    function handleBeforeUnload() {
+      lockedSeatRefs.current.forEach(seatId => {
+        // Use sendBeacon for reliable delivery during page unload
+        const url = `${(supabase as any).supabaseUrl}/rest/v1/rpc/unlock_seat`;
+        const token = (supabase as any).supabaseKey;
+        if (navigator.sendBeacon) {
+          const blob = new Blob([JSON.stringify({ p_seat_id: seatId })], { type: 'application/json' });
+          navigator.sendBeacon(url, blob);
+        }
+      });
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
   // Auto-release on lock expiry
