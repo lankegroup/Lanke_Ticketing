@@ -240,7 +240,15 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
   }
 
   async function handleSubmit() {
-    if (!selectedSession) return;
+    if (!selectedSession) {
+      setError('数据加载异常：请先选择场次');
+      return;
+    }
+    if (!user.id) {
+      setError('数据加载异常：用户信息无效');
+      return;
+    }
+
     setError('');
     setSubmitting(true);
 
@@ -289,9 +297,15 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       return;
     }
 
+    if (!rpcResult.registration_id) {
+      setError('数据加载异常：订单ID为空');
+      setSubmitting(false);
+      return;
+    }
+
     const deductResult = await deductLcoinForPurchase(
       user.id,
-      rpcResult.order_id || '',
+      rpcResult.registration_id,
       selectedSession.id,
       ticketPrice,
       ticketType,
