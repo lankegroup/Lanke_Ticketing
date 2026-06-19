@@ -127,6 +127,8 @@ export function renderTicketToCanvas(p: TicketParams): void {
     subLabelEn = 'Event Admission Proof';
   }
 
+  const currencySymbol = p.paymentMethod === 'lcoin' ? 'LC ' : '¥';
+
   // ── Row definitions ──────────────────────────────────────────────────
   const rowDefs: RowDef[] = [
     { cnLabel: '活动时间', enLabel: 'Event Time',   cnValue: activityTimeCn, enValue: activityTimeEn },
@@ -140,13 +142,16 @@ export function renderTicketToCanvas(p: TicketParams): void {
     { cnLabel: '操作员',   enLabel: 'Operator',    cnValue: operatorCn,     enValue: operatorEn },
     { cnLabel: '下单时间', enLabel: 'Order Time',  cnValue: p.orderTime,    enValue: p.orderTime },
     ...(p.ticketPrice !== undefined && p.ticketPrice > 0
-      ? [{ cnLabel: '票  价', enLabel: 'Ticket Price', cnValue: `¥${p.ticketPrice.toFixed(2)}`, enValue: `¥${p.ticketPrice.toFixed(2)}` }]
+      ? [{ cnLabel: '票  价', enLabel: 'Ticket Price', cnValue: `${currencySymbol}${p.ticketPrice.toFixed(2)}`, enValue: `${currencySymbol}${p.ticketPrice.toFixed(2)}` }]
       : []),
     ...(p.serviceFee !== undefined && p.serviceFee > 0
-      ? [{ cnLabel: '手续费', enLabel: 'Service Fee', cnValue: `¥${p.serviceFee.toFixed(2)}`, enValue: `¥${p.serviceFee.toFixed(2)}` }]
+      ? [{ cnLabel: '手续费', enLabel: 'Service Fee', cnValue: `${currencySymbol}${p.serviceFee.toFixed(2)}`, enValue: `${currencySymbol}${p.serviceFee.toFixed(2)}` }]
       : []),
     ...(p.ticketPrice !== undefined && p.serviceFee !== undefined
-      ? [{ cnLabel: '合  计', enLabel: 'Total', cnValue: `¥${(p.ticketPrice + p.serviceFee).toFixed(2)}`, enValue: `¥${(p.ticketPrice + p.serviceFee).toFixed(2)}` }]
+      ? [{ cnLabel: '合  计', enLabel: 'Total', cnValue: `${currencySymbol}${(p.ticketPrice + p.serviceFee).toFixed(2)}`, enValue: `${currencySymbol}${(p.ticketPrice + p.serviceFee).toFixed(2)}` }]
+      : []),
+    ...(p.paymentMethod === 'mixed' && p.rmbAmount !== undefined && p.rmbAmount > 0
+      ? [{ cnLabel: '实付人民币', enLabel: 'RMB Paid', cnValue: `¥${p.rmbAmount.toFixed(2)}`, enValue: `¥${p.rmbAmount.toFixed(2)}` }]
       : []),
     ...(p.paidAt
       ? [{ cnLabel: '付款时间', enLabel: 'Payment Time', cnValue: p.paidAt, enValue: p.paidAt }]

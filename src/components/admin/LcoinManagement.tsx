@@ -40,6 +40,7 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
   const [rechargeEnabled, setRechargeEnabled] = useState(true);
   const [rechargeSettingsId, setRechargeSettingsId] = useState<string | null>(null);
   const [uploadingBanner, setUploadingBanner] = useState(false);
+  const [exchangeRate, setExchangeRate] = useState('1.00');
 
   useEffect(() => {
     fetchUsers();
@@ -105,31 +106,43 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
   }
 
   async function fetchConfig() {
-    const { data: configData } = await supabase.from('lcoin_config').select('key, value, value_en').eq('key', 'recharge_description');
-    if (configData && configData.length > 0) {
-      setRechargeDescription(configData[0].value || '');
-      setRechargeDescriptionEn(configData[0].value_en || '');
+    const { data: configData } = await supabase.from('lcoin_config').select('key, value, value_en');
+    if (configData) {
+      const descConfig = configData.find(c => c.key === 'recharge_description');
+      if (descConfig) {
+        setRechargeDescription(descConfig.value || '');
+        setRechargeDescriptionEn(descConfig.value_en || '');
+      }
+      const rateConfig = configData.find(c => c.key === 'exchange_rate');
+      if (rateConfig) {
+        setExchangeRate(rateConfig.value || '1.00');
+      }
     }
     const { data: settingsData } = await supabase.from('recharge_settings').select('*').single();
     if (settingsData) {
       setRechargeSettingsId(settingsData.id);
       setBannerImage(settingsData.banner_image || null);
       setRechargeEnabled(settingsData.enabled ?? true);
-      if (settingsData.description && !configData?.[0]?.value) {
-        setRechargeDescription(settingsData.description);
-      }
     }
   }
 
   async function saveConfig() {
     setSavingConfig(true);
     try {
-      const { data: existing } = await supabase.from('lcoin_config').select('id').eq('key', 'recharge_description');
-      if (existing && existing.length > 0) {
+      const { data: existingDesc } = await supabase.from('lcoin_config').select('id').eq('key', 'recharge_description');
+      if (existingDesc && existingDesc.length > 0) {
         await supabase.from('lcoin_config').update({ value: rechargeDescription, value_en: rechargeDescriptionEn, updated_at: new Date().toISOString() }).eq('key', 'recharge_description');
       } else {
         await supabase.from('lcoin_config').insert({ key: 'recharge_description', value: rechargeDescription, value_en: rechargeDescriptionEn });
       }
+
+      const { data: existingRate } = await supabase.from('lcoin_config').select('id').eq('key', 'exchange_rate');
+      if (existingRate && existingRate.length > 0) {
+        await supabase.from('lcoin_config').update({ value: exchangeRate, updated_at: new Date().toISOString() }).eq('key', 'exchange_rate');
+      } else {
+        await supabase.from('lcoin_config').insert({ key: 'exchange_rate', value: exchangeRate });
+      }
+
       if (rechargeSettingsId) {
         await supabase.from('recharge_settings').update({
           banner_image: bannerImage,
@@ -469,6 +482,29 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
                 >
                   <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${rechargeEnabled ? 'left-7' : 'left-1'}`} />
                 </button>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <h4 className="font-semibold text-amber-800 mb-3">{isEn ? 'L-Coin Exchange Rate' : '兰克币兑现率'}</h4>
+                <p className="text-xs text-amber-600 mb-3">{isEn ? '1 L-Coin = X RMB, used for mixed payment conversion' : '1 兰克币 = X 人民币，用于混合支付时的折算计算'}</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl font-bold text-amber-600">1</span>
+                  <span className="text-sm text-gray-600">{isEn ? 'L-Coin =' : '兰克币 ='}</span>
+                  <div className="flex-1 relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={exchangeRate}
+                      onChange={e => setExchangeRate(e.target.value)}
+                      className="w-full border border-amber-200 rounded-xl pl-7 pr-3 py-2.5 text-lg font-bold text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                      placeholder="1.00"
+                    />
+                  </div>
+                  <span className="text-sm text-gray-600">{isEn ? 'RMB' : '人民币'}</span>
+                </div>
+                <p className="text-[10px] text-amber-500 mt-2">{isEn ? 'Tip: Set to 1.00 for 1:1 exchange' : '提示：设置为 1.00 即为 1:1 兑换'}</p>
               </div>
             </div>
 
