@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { supabase, callEdgeFunction, Session, SeatMapRow, UserProfile, TicketType } from '../../lib/supabase';
+import { supabase, callEdgeFunction, Session, SeatMapRow, UserProfile, TicketType, deductLcoinForPurchase } from '../../lib/supabase';
 import { X, Calendar, Clock, ArrowLeft, LayoutGrid, CheckCircle2, AlertTriangle, Ticket } from 'lucide-react';
 import SeatMap from '../SeatMap';
 
@@ -289,22 +289,20 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       return;
     }
 
-    const deductResult = await supabase.rpc('create_lcoin_transaction', {
-      p_user_id: user.id,
-      p_transaction_type: 'purchase',
-      p_amount: ticketPrice,
-      p_session_id: selectedSession.id,
-      p_operator_type: 'admin',
-      p_description: `代客预约：${selectedSession.name}`,
-      p_payment_method: 'lcoin',
-    });
+    const deductResult = await deductLcoinForPurchase(
+      user.id,
+      rpcResult.order_id || '',
+      selectedSession.id,
+      ticketPrice,
+      ticketType,
+      selectedSeat?.seat_name
+    );
 
-    const deductData = deductResult.data as any;
-    if (!deductData?.success) {
-      if (deductData?.error === 'insufficient_balance') {
+    if (!deductResult.success) {
+      if (deductResult.error === 'insufficient_balance') {
         setError(`余额不足！当前余额 ${customerBalance} L-Coin，需支付 ${ticketPrice} L-Coin`);
       } else {
-        setError(deductData?.error || '扣款失败，请重试');
+        setError(deductResult.error || '扣款失败，请重试');
       }
       setSubmitting(false);
       return;

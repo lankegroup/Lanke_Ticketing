@@ -316,56 +316,6 @@ $$;
 
 GRANT EXECUTE ON FUNCTION expire_past_tickets() TO service_role;
 
--- 7. create_lcoin_transaction - 创建兰克币交易记录
-DROP FUNCTION IF EXISTS public.create_lcoin_transaction(uuid,text,numeric,uuid,text,text,text);
-
-CREATE OR REPLACE FUNCTION public.create_lcoin_transaction(
-  p_user_id UUID,
-  p_transaction_type TEXT,
-  p_amount NUMERIC,
-  p_session_id UUID DEFAULT NULL,
-  p_operator_type TEXT DEFAULT 'system',
-  p_description TEXT DEFAULT NULL,
-  p_payment_method TEXT DEFAULT 'lcoin'
-)
-RETURNS JSONB
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-DECLARE
-  v_balance NUMERIC;
-  v_new_balance NUMERIC;
-  v_direction TEXT;
-  v_tx_id UUID;
-BEGIN
-  SELECT COALESCE(balance, 0) INTO v_balance FROM lcoin_accounts WHERE user_id = p_user_id;
-  IF v_balance IS NULL THEN v_balance := 0; END IF;
-
-  IF p_transaction_type IN ('deduct', 'consume', 'purchase', 'fee', 'reschedule', 'adjust_subtract') THEN
-    v_direction := 'out';
-    v_new_balance := v_balance - p_amount;
-    IF v_new_balance < 0 THEN
-      RETURN jsonb_build_object('success', false, 'error', 'insufficient_balance', 'balance', v_balance);
-    END IF;
-    UPDATE lcoin_accounts SET balance = v_new_balance WHERE user_id = p_user_id;
-  ELSE
-    v_direction := 'in';
-    v_new_balance := v_balance + p_amount;
-    UPDATE lcoin_accounts SET balance = v_new_balance WHERE user_id = p_user_id;
-  END IF;
-
-  INSERT INTO lcoin_transactions (user_id, transaction_type, direction, amount, balance_before, balance_after, session_id, operator_type, description, payment_method)
-  VALUES (p_user_id, p_transaction_type, v_direction, p_amount, v_balance, v_new_balance, p_session_id, p_operator_type, p_description, p_payment_method)
-  RETURNING id INTO v_tx_id;
-
-  RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'new_balance', v_new_balance);
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.create_lcoin_transaction(UUID, TEXT, NUMERIC, UUID, TEXT, TEXT, TEXT) TO service_role;
-GRANT EXECUTE ON FUNCTION public.create_lcoin_transaction(UUID, TEXT, NUMERIC, UUID, TEXT, TEXT, TEXT) TO authenticated;
-
 -- 8. deduct_lcoin - 扣除兰克币
 DROP FUNCTION IF EXISTS public.deduct_lcoin(uuid,numeric,text,uuid);
 
