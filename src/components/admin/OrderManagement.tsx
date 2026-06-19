@@ -79,6 +79,23 @@ function RegistrationsList() {
   const [reprintCountForConfirm, setReprintCountForConfirm] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+
+  // Refund preview modal
+  const [refundPreview, setRefundPreview] = useState<{
+    registration_id: string;
+    session_name: string;
+    ticket_code: string;
+    hours_before: number;
+    penalty_rate: number;
+    penalty_amount: number;
+    refund_amount: number;
+    original_lcoin: number;
+    original_cash: number;
+    has_cash_payment: boolean;
+    description: string;
+  } | null>(null);
+  const [refundSaving, setRefundSaving] = useState(false);
+
   const printCanvasRef = useRef<HTMLCanvasElement>(null);
   const printQrRef = useRef<HTMLDivElement>(null);
 
@@ -232,19 +249,46 @@ function RegistrationsList() {
     }
   }
 
-  async function cancelReg(id: string) {
-    const { data, error } = await supabase.rpc('admin_cancel_registration', {
-      p_registration_id: id,
+  async function showRefundPreview(id: string) {
+    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
+    if (error || (data as any)?.success === false) {
+      showToast('获取退票信息失败', 'error');
+      return;
+    }
+    setRefundPreview(data as any);
+    setConfirm(null);
+  }
+
+  async function confirmCancelReg() {
+    if (!refundPreview) return;
+    setRefundSaving(true);
+    const { data, error } = await supabase.rpc('cancel_ticket', {
+      p_registration_id: refundPreview.registration_id,
+      p_reason: 'admin_cancel',
+      p_operator_id: user?.id,
     });
     if (error || (data as any)?.success === false) {
       const errMsg = error ? (typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)) : '';
       const funcErr = (data as any)?.error || '';
       showToast(errMsg || funcErr || t('operation_failed'), 'error');
     } else {
-      showToast(t('cancel_success'));
+      const result = data as any;
+      let msg = t('cancel_success');
+      if (result.pending_cash_refund > 0) {
+        msg += `（蓝克币已退回 ${result.refunded_lcoin} LC，现金部分需人工处理）`;
+      } else if (result.refunded_lcoin > 0) {
+        msg += `（已退回 ${result.refunded_lcoin} LC）`;
+      }
+      showToast(msg);
     }
-    setConfirm(null);
+    setRefundPreview(null);
+    setRefundSaving(false);
     fetchData();
+  }
+
+  async function cancelReg(id: string) {
+    // Legacy function - now shows preview first
+    showRefundPreview(id);
   }
 
   async function adminDeleteReg(id: string) {
@@ -496,6 +540,88 @@ function RegistrationsList() {
           onConfirm={() => { doVerify(verifyConfirm, 'used'); setVerifyConfirm(null); }}
           onCancel={() => setVerifyConfirm(null)}
         />
+      )}
+
+      {/* Refund Preview Modal */}
+      {refundPreview && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={20} className="text-amber-500" />
+              <h3 className="font-bold text-gray-900 text-base">{isEn ? 'Cancel Ticket Confirmation' : '退票确认'}</h3>
+            </div>
+
+            <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-500">{isEn ? 'Session' : '场次'}</span>
+                <span className="font-medium text-gray-900 truncate max-w-[180px]">{refundPreview.session_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">{isEn ? 'Ticket Code' : '票码'}</span>
+                <span className="font-mono text-gray-900">{refundPreview.ticket_code}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">{isEn ? 'Hours Before Start' : '距开场时间'}</span>
+                <span className="font-medium text-gray-900">
+                  {refundPreview.hours_before > 0
+                    ? `${Math.round(refundPreview.hours_before)} 小时`
+                    : isEn ? 'Already started' : '已开场/已过期'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">{isEn ? 'Original L-Coin' : '原蓝克币支付'}</span>
+                <span className="font-medium text-amber-600">{refundPreview.original_lcoin} LC</span>
+              </div>
+              {refundPreview.original_cash > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500">{isEn ? 'Original Cash' : '原现金支付'}</span>
+                  <span className="font-medium text-red-600">¥{refundPreview.original_cash}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+              <p className="text-xs text-amber-700 font-medium">{refundPreview.description}</p>
+              <div className="flex justify-between text-xs">
+                <span className="text-amber-600">{isEn ? 'Penalty Rate' : '退票费比例'}</span>
+                <span className="font-bold text-amber-800">{Math.round(refundPreview.penalty_rate * 100)}%</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-amber-600">{isEn ? 'Penalty Amount' : '退票费金额'}</span>
+                <span className="font-bold text-red-600">{refundPreview.penalty_amount} LC</span>
+              </div>
+              <div className="flex justify-between text-xs border-t border-amber-200 pt-2">
+                <span className="text-amber-700">{isEn ? 'Refund to User' : '实际退回用户'}</span>
+                <span className="font-bold text-emerald-600">{refundPreview.refund_amount} LC</span>
+              </div>
+            </div>
+
+            {refundPreview.has_cash_payment && (
+              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-600">
+                {isEn
+                  ? 'Cash payment requires manual refund processing.'
+                  : '现金支付部分需联系管理员人工处理退款。'}
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setRefundPreview(null)}
+                disabled={refundSaving}
+                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                {isEn ? 'Cancel' : '取消操作'}
+              </button>
+              <button
+                onClick={confirmCancelReg}
+                disabled={refundSaving}
+                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm transition-colors disabled:opacity-50"
+              >
+                {refundSaving ? '...' : isEn ? 'Confirm Cancel' : '确认退票'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="relative">
@@ -1388,6 +1514,19 @@ function SessionEditor({
   const [concessionPrice, setConcessionPrice] = useState(initial.concession_price ?? 0);
   const [vipPrice, setVipPrice] = useState(initial.vip_price ?? 0);
   const [defaultServiceFee, setDefaultServiceFee] = useState(initial.default_service_fee ?? 0);
+
+  // Refund penalty rules (退票费梯度设置)
+  type RefundRule = { hours_before: number; penalty_rate: number; description: string };
+  const defaultRefundRules: RefundRule[] = [
+    { hours_before: 24, penalty_rate: 0, description: '开场前24小时以上，全额退款' },
+    { hours_before: 6, penalty_rate: 0.1, description: '开场前6-24小时，扣除10%' },
+    { hours_before: 2, penalty_rate: 0.3, description: '开场前2-6小时，扣除30%' },
+    { hours_before: 0, penalty_rate: 1.0, description: '开场后/过期，扣除100%' },
+  ];
+  const [refundRules, setRefundRules] = useState<RefundRule[]>(
+    (initial as any).refund_penalty_rules ?? defaultRefundRules
+  );
+
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -1695,6 +1834,7 @@ function SessionEditor({
       concession_price: concessionPrice || null,
       vip_price: vipPrice || null,
       default_service_fee: defaultServiceFee,
+      refund_penalty_rules: refundRules.length > 0 ? refundRules : null,
     };
 
     let sessionId = savedSessionId;
@@ -2303,6 +2443,98 @@ function SessionEditor({
             </div>
           </div>
           <p className="text-[10px] text-gray-400">{isEn ? 'Prices are in Lanke Coins. Default service fee will pre-fill the print modal.' : '价格以兰克币计价。默认手续费将在打印弹窗中自动填入。'}</p>
+        </div>
+
+        {/* Refund Penalty Rules */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{isEn ? 'Refund Penalty Rules' : '退票费梯度设置'}</h3>
+            <button
+              onClick={() => {
+                const newRule: RefundRule = { hours_before: 0, penalty_rate: 0, description: '' };
+                setRefundRules([...refundRules, newRule]);
+              }}
+              className="flex items-center gap-1 text-xs text-sky-600 hover:text-sky-500 font-medium"
+            >
+              <Plus size={12} /> {isEn ? 'Add Rule' : '添加规则'}
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400">
+            {isEn
+              ? 'Set penalty rates based on hours before session start. Rules are matched in order (largest hours_first).'
+              : '根据开场前时间设置扣费比例。规则按顺序匹配（时间阈值大的优先）。'}
+          </p>
+          <div className="space-y-2">
+            {refundRules.map((rule, idx) => (
+              <div key={idx} className="bg-gray-50 rounded-xl p-3 space-y-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <label className="text-[10px] text-gray-400 mb-0.5 block">{isEn ? 'Hours Before' : '开场前时间（小时）'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={rule.hours_before}
+                      onChange={e => {
+                        const updated = [...refundRules];
+                        updated[idx] = { ...updated[idx], hours_before: parseFloat(e.target.value) || 0 };
+                        setRefundRules(updated);
+                      }}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-[10px] text-gray-400 mb-0.5 block">{isEn ? 'Penalty Rate (%)' : '扣费比例 (%)'}</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="1"
+                      value={Math.round(rule.penalty_rate * 100)}
+                      onChange={e => {
+                        const updated = [...refundRules];
+                        updated[idx] = { ...updated[idx], penalty_rate: (parseFloat(e.target.value) || 0) / 100 };
+                        setRefundRules(updated);
+                      }}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
+                    />
+                  </div>
+                  <button
+                    onClick={() => {
+                      setRefundRules(refundRules.filter((_, i) => i !== idx));
+                    }}
+                    className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"
+                    title={isEn ? 'Delete' : '删除'}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+                <div>
+                  <label className="text-[10px] text-gray-400 mb-0.5 block">{isEn ? 'Description' : '规则描述'}</label>
+                  <input
+                    type="text"
+                    value={rule.description}
+                    onChange={e => {
+                      const updated = [...refundRules];
+                      updated[idx] = { ...updated[idx], description: e.target.value };
+                      setRefundRules(updated);
+                    }}
+                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-sky-400"
+                    placeholder={isEn ? 'e.g. Full refund' : '如：全额退款'}
+                  />
+                </div>
+              </div>
+            ))}
+            {refundRules.length === 0 && (
+              <p className="text-xs text-gray-400 text-center py-4">{isEn ? 'No rules set. Full refund by default.' : '未设置规则，默认全额退款。'}</p>
+            )}
+          </div>
+          <button
+            onClick={() => setRefundRules(defaultRefundRules)}
+            className="text-xs text-gray-500 hover:text-gray-600 underline"
+          >
+            {isEn ? 'Reset to default' : '恢复默认规则'}
+          </button>
         </div>
 
         {/* Cover Image */}
