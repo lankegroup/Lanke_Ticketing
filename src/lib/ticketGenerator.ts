@@ -24,6 +24,8 @@ export interface TicketParams {
   printedAt?: string;
   paymentMethod?: 'rmb' | 'lcoin' | 'mixed';
   rmbAmount?: number;
+  lcoinAmount?: number;
+  exchangeRate?: number;
   purchaseChannel?: 'online' | 'offline';
 }
 
@@ -129,6 +131,12 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   const currencySymbol = p.paymentMethod === 'lcoin' ? 'LC ' : '¥';
 
+  // 混合支付时，合计显示为 ¥RMB    XX.XX LC 格式
+  const totalAmount = (p.ticketPrice ?? 0) + (p.serviceFee ?? 0);
+  const totalDisplay = p.paymentMethod === 'mixed' && p.rmbAmount !== undefined
+    ? `¥${p.rmbAmount.toFixed(2)}      ${(p.lcoinAmount ?? (totalAmount - p.rmbAmount) / (p.exchangeRate || 1)).toFixed(2)} LC`
+    : `${currencySymbol}${totalAmount.toFixed(2)}`;
+
   // ── Row definitions ──────────────────────────────────────────────────
   const rowDefs: RowDef[] = [
     { cnLabel: '活动时间', enLabel: 'Event Time',   cnValue: activityTimeCn, enValue: activityTimeEn },
@@ -141,17 +149,19 @@ export function renderTicketToCanvas(p: TicketParams): void {
       : []),
     { cnLabel: '操作员',   enLabel: 'Operator',    cnValue: operatorCn,     enValue: operatorEn },
     { cnLabel: '下单时间', enLabel: 'Order Time',  cnValue: p.orderTime,    enValue: p.orderTime },
-    ...(p.ticketPrice !== undefined && p.ticketPrice > 0
+    // 混合支付时不显示票价和手续费两栏，只在合计中显示双货币
+    ...(p.paymentMethod !== 'mixed' && p.ticketPrice !== undefined && p.ticketPrice > 0
       ? [{ cnLabel: '票  价', enLabel: 'Ticket Price', cnValue: `${currencySymbol}${p.ticketPrice.toFixed(2)}`, enValue: `${currencySymbol}${p.ticketPrice.toFixed(2)}` }]
       : []),
-    ...(p.serviceFee !== undefined && p.serviceFee > 0
+    ...(p.paymentMethod !== 'mixed' && p.serviceFee !== undefined && p.serviceFee > 0
       ? [{ cnLabel: '手续费', enLabel: 'Service Fee', cnValue: `${currencySymbol}${p.serviceFee.toFixed(2)}`, enValue: `${currencySymbol}${p.serviceFee.toFixed(2)}` }]
       : []),
-    ...(p.ticketPrice !== undefined && p.serviceFee !== undefined
-      ? [{ cnLabel: '合  计', enLabel: 'Total', cnValue: `${currencySymbol}${(p.ticketPrice + p.serviceFee).toFixed(2)}`, enValue: `${currencySymbol}${(p.ticketPrice + p.serviceFee).toFixed(2)}` }]
+    ...(p.paymentMethod !== 'mixed' && p.ticketPrice !== undefined && p.serviceFee !== undefined
+      ? [{ cnLabel: '合  计', enLabel: 'Total', cnValue: `${currencySymbol}${totalAmount.toFixed(2)}`, enValue: `${currencySymbol}${totalAmount.toFixed(2)}` }]
       : []),
-    ...(p.paymentMethod === 'mixed' && p.rmbAmount !== undefined && p.rmbAmount > 0
-      ? [{ cnLabel: '实付人民币', enLabel: 'RMB Paid', cnValue: `¥${p.rmbAmount.toFixed(2)}`, enValue: `¥${p.rmbAmount.toFixed(2)}` }]
+    // 混合支付：合计显示双货币格式
+    ...(p.paymentMethod === 'mixed'
+      ? [{ cnLabel: '合  计', enLabel: 'Total', cnValue: totalDisplay, enValue: totalDisplay }]
       : []),
     ...(p.paidAt
       ? [{ cnLabel: '付款时间', enLabel: 'Payment Time', cnValue: p.paidAt, enValue: p.paidAt }]

@@ -781,13 +781,13 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     if (results.length > 0) {
       setTimeout(() => {
         results.forEach((t, i) => {
-          setTimeout(() => generateAndDownload(t.ticket_code, t.seat_name, isSupplementary, t.registration_id), i * 300);
+          setTimeout(() => generateAndDownload(t.ticket_code, t.seat_name, isSupplementary, t.registration_id, undefined, t.ticket_type as TicketType), i * 300);
         });
       }, 500);
     }
   }
 
-  async function generateAndDownload(ticketCode: string, seatName?: string, supplementary = false, registrationId?: string, printResult?: PrintConfirmResult) {
+  async function generateAndDownload(ticketCode: string, seatName?: string, supplementary = false, registrationId?: string, printResult?: PrintConfirmResult, ticketTypeOverride?: TicketType) {
     const canvas = canvasRef.current;
     if (!canvas || !selectedSession) return;
 
@@ -800,6 +800,21 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     }
 
     const s = selectedSession;
+    const rmbPayAmount = parseFloat(rmbAmount || '0');
+    const rmbDiff = totalPrice - rmbPayAmount;
+    let lcoinPayAmount = 0;
+    if (paymentMethod === 'lcoin') {
+      lcoinPayAmount = totalPrice / exchangeRate;
+    } else if (paymentMethod === 'rmb' && rmbPayAmount > 0 && rmbDiff > 0) {
+      lcoinPayAmount = rmbDiff / exchangeRate;
+    }
+    lcoinPayAmount = Math.round(lcoinPayAmount * 100) / 100;
+
+    // 获取当前时间作为下单时间/付款时间/打印时间
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const nowStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+
     renderTicketToCanvas({
       canvas,
       qrEl,
@@ -813,15 +828,18 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
       name: name.trim(),
       seatName,
       operatorName: '001',
-      orderTime: formatOrderTime(),
+      orderTime: nowStr,
       isSupplementary: supplementary,
       isReprint,
       ticketPrice: s.ticket_price,
+      ticketType: ticketTypeOverride,
       serviceFee: printResult?.serviceFee,
-      paidAt: printResult?.paidAt,
-      printedAt: printResult?.printedAt,
+      paidAt: nowStr,
+      printedAt: nowStr,
       paymentMethod: paymentMethod,
-      rmbAmount: parseFloat(rmbAmount || '0'),
+      rmbAmount: rmbPayAmount,
+      lcoinAmount: lcoinPayAmount,
+      exchangeRate: exchangeRate,
       purchaseChannel: 'offline',
     });
     downloadTicket(canvas, ticketCode);
