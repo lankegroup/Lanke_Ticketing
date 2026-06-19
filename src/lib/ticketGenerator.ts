@@ -137,9 +137,6 @@ export function renderTicketToCanvas(p: TicketParams): void {
     ...(p.seatName
       ? [{ cnLabel: '座  位', enLabel: 'Seat', cnValue: p.seatName, enValue: seatEn, cnValueBase: 34 * D }]
       : []),
-    ...(p.ticketType
-      ? [{ cnLabel: '票  种', enLabel: 'Ticket Type', cnValue: ticketTypeCn[p.ticketType], enValue: ticketTypeEn[p.ticketType], color: ticketTypeColor[p.ticketType] }]
-      : []),
     { cnLabel: '操作员',   enLabel: 'Operator',    cnValue: operatorCn,     enValue: operatorEn },
     { cnLabel: '下单时间', enLabel: 'Order Time',  cnValue: p.orderTime,    enValue: p.orderTime },
     ...(p.ticketPrice !== undefined && p.ticketPrice > 0
@@ -213,8 +210,31 @@ export function renderTicketToCanvas(p: TicketParams): void {
     badgeY += BH + 6 * D;
   }
 
+  function drawTicketTypeBadge(cnText: string, enText: string) {
+    const TBW = 100 * D;
+    const TBH = 34 * D;
+    const TBX = W - PAD - TBW;
+    
+    ctx.fillStyle = '#0ea5e9';
+    ctx.beginPath();
+    ctx.roundRect(TBX, badgeY, TBW, TBH, 7 * D);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold ${14 * D}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(cnText, TBX + TBW / 2, badgeY + 16 * D);
+    
+    ctx.font = `bold ${10 * D}px sans-serif`;
+    ctx.fillText(enText, TBX + TBW / 2, badgeY + 28 * D);
+    
+    ctx.textAlign = 'left';
+    badgeY += TBH + 6 * D;
+  }
+
   if (p.isReprint)       drawBadge('补打', '#475569');
   if (p.isSupplementary) drawBadge('补票', '#f97316');
+  if (p.ticketType)      drawTicketTypeBadge(ticketTypeCn[p.ticketType], ticketTypeEn[p.ticketType]);
 
   // ── Header ───────────────────────────────────────────────────────────
   const cnNameSize = adaptedCnSize(ctx, p.sessionName, 40 * D, sessionNameEn, 22 * D);
@@ -237,7 +257,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillText(subLabelEn, PAD, SUBLABEL_EN_Y);
 
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#d1d5db';
+  ctx.strokeStyle = '#9ca3af';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, DIVIDER_Y);
@@ -299,7 +319,7 @@ export function renderTicketToCanvas(p: TicketParams): void {
 
   // Perforation divider
   ctx.setLineDash([7 * D, 5 * D]);
-  ctx.strokeStyle = '#d1d5db';
+  ctx.strokeStyle = '#9ca3af';
   ctx.lineWidth = D;
   ctx.beginPath();
   ctx.moveTo(PAD, iy);
