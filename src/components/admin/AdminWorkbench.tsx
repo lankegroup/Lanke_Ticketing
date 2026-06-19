@@ -522,6 +522,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
   const [rmbAmount, setRmbAmount] = useState('');
   const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
   const [customerBalance, setCustomerBalance] = useState(0);
+  const [exchangeRate, setExchangeRate] = useState(1.0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const qrContainerRef = useRef<HTMLDivElement>(null);
   const lockedSeatRefs = useRef<Set<string>>(new Set());
@@ -531,6 +532,14 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     supabase.from('sessions').select('*').eq('is_active', true)
       .order('session_date').order('start_time')
       .then(({ data }) => setSessions((data as Session[]) ?? []));
+
+    supabase.from('lcoin_config').select('value').eq('key', 'exchange_rate').maybeSingle()
+      .then(({ data }) => {
+        if (data && data.value) {
+          setExchangeRate(parseFloat(data.value) || 1.0);
+        }
+      });
+
     return () => {
       lockedSeatRefs.current.forEach(seatId => {
         supabase.rpc('unlock_seat', { p_seat_id: seatId });
@@ -647,8 +656,8 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
       setMatchedUserId(data.id);
       setMatchedUserName(data.display_name);
       if (!name.trim() && data.display_name) setName(data.display_name);
-      const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: data.id });
-      setCustomerBalance(Number(balData) || 0);
+      const { data: balData } = await supabase.from('user_balances').select('balance').eq('user_id', data.id).maybeSingle();
+      setCustomerBalance(Number(balData?.balance) || 0);
     }
   }
 
@@ -694,8 +703,18 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     setError('');
 
     const rmbPayAmount = parseFloat(rmbAmount || '0');
-    const lcoinPayAmount = paymentMethod === 'lcoin' ? totalPrice : 
-                          (paymentMethod === 'rmb' && rmbPayAmount > 0 && rmbPayAmount < totalPrice) ? (totalPrice - rmbPayAmount) : 0;
+    const rmbDiff = totalPrice - rmbPayAmount;
+    let lcoinPayAmount = 0;
+    
+    if (paymentMethod === 'lcoin') {
+      lcoinPayAmount = totalPrice / exchangeRate;
+    } else if (paymentMethod === 'rmb') {
+      if (rmbPayAmount > 0 && rmbDiff > 0) {
+        lcoinPayAmount = rmbDiff / exchangeRate;
+      }
+    }
+    
+    lcoinPayAmount = Math.round(lcoinPayAmount * 100) / 100;
 
     if (lcoinPayAmount > 0 && matchedUserId) {
       if (customerBalance < lcoinPayAmount) {
@@ -704,18 +723,35 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
         return;
       }
 
-      const deductResult = await supabase.rpc('deduct_lcoin', {
-        p_user_id: matchedUserId,
-        p_amount: lcoinPayAmount,
-        p_description: `购票：${selectedSession.name}`,
-        p_reference_id: selectedSession.id,
-      });
+      const { data: currentBalData } = await supabase.from('user_balances').select('balance').eq('user_id', matchedUserId).maybeSingle();
+      const currentBal = Number(currentBalData?.balance) || 0;
+      
+      if (currentBal < lcoinPayAmount) {
+        setError(`余额不足！当前余额 ${currentBal} L-Coin，需支付 ${lcoinPayAmount} L-Coin`);
+        setSubmitting(false);
+        return;
+      }
 
-      if (!deductResult.data) {
+      const updateResult = await supabase.from('user_balances').update({ 
+        balance: currentBal - lcoinPayAmount,
+        updated_at: new Date().toISOString()
+      }).eq('user_id', matchedUserId);
+
+      if (updateResult.error) {
         setError('扣款失败，请重试');
         setSubmitting(false);
         return;
       }
+
+      await supabase.from('balance_transactions').insert({
+        user_id: matchedUserId,
+        transaction_type: 'purchase',
+        amount: lcoinPayAmount,
+        balance_before: currentBal,
+        balance_after: currentBal - lcoinPayAmount,
+        description: `购票：${selectedSession.name}`,
+        reference_id: selectedSession.id,
+      });
     }
 
     const itemsToBook: { seatId: string | null; ticketType: TicketType }[] = selectedSession.has_seating_chart
@@ -750,9 +786,9 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     setSuccessTickets(results);
     setStep('done');
 
-    if ((paymentMethod === 'lcoin' || paymentMethod === 'mixed') && matchedUserId) {
-      const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: matchedUserId });
-      setCustomerBalance(Number(balData) || 0);
+    if ((paymentMethod === 'lcoin' || (paymentMethod === 'rmb' && lcoinPayAmount > 0)) && matchedUserId) {
+      const { data: balData } = await supabase.from('user_balances').select('balance').eq('user_id', matchedUserId).maybeSingle();
+      setCustomerBalance(Number(balData?.balance) || 0);
     }
 
     if (results.length > 0) {
@@ -1245,7 +1281,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
             <div className="bg-sky-50 border border-sky-200 rounded-xl p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-600">应付总额</span>
-                <span className="text-sm font-bold text-sky-700">{totalPrice} LC</span>
+                <span className="text-sm font-bold text-sky-700">¥{totalPrice}</span>
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">人民币支付金额（元）</label>
@@ -1271,7 +1307,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
                 <div className="flex justify-between text-xs pt-1 border-t border-sky-200">
                   <span className="text-gray-600">需兰克币支付差额</span>
                   <span className="font-medium text-amber-600">
-                    {(totalPrice - parseFloat(rmbAmount || '0')).toFixed(2)} LC
+                    {((totalPrice - parseFloat(rmbAmount || '0')) / exchangeRate).toFixed(2)} LC
                   </span>
                 </div>
               )}
@@ -1352,7 +1388,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">兰克币支付差额</span>
-                    <span className="font-medium text-amber-600">{(totalPrice - parseFloat(rmbAmount || '0')).toFixed(2)} LC</span>
+                    <span className="font-medium text-amber-600">{((totalPrice - parseFloat(rmbAmount || '0')) / exchangeRate).toFixed(2)} LC</span>
                   </div>
                 </>
               )}
@@ -1365,7 +1401,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
               <div className="border-t border-gray-200 pt-2 flex justify-between">
                 <span className="text-gray-600">应付总额</span>
                 <span className={`text-xl font-bold ${paymentMethod === 'rmb' ? 'text-sky-500' : 'text-amber-500'}`}>
-                  {totalPrice} LC
+                  {paymentMethod === 'rmb' ? `¥${totalPrice}` : `${(totalPrice / exchangeRate).toFixed(2)} LC`}
                 </span>
               </div>
               {(paymentMethod === 'lcoin' || (paymentMethod === 'rmb' && parseFloat(rmbAmount || '0') > 0 && parseFloat(rmbAmount || '0') < totalPrice)) && matchedUserId && (
