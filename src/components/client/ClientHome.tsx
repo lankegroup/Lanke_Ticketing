@@ -678,93 +678,99 @@ function BookingFormView({
     setSubmitting(true);
     setProgress({ done: 0, total: totalOrders });
 
-    // Phone-based user association: look up whether the entered phone belongs
-    // to a registered user different from the current buyer.
-    let effectiveUserId: string | null = userId;
-    let buyerUserId: string | null = null;
-    const trimmedPhone = phone.trim();
-    if (trimmedPhone.length >= 7) {
-      const { data: phoneMatch } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('phone', trimmedPhone)
-        .maybeSingle();
-      if (phoneMatch && phoneMatch.id !== userId) {
-        effectiveUserId = phoneMatch.id;
-        buyerUserId = userId;
+    try {
+      // Phone-based user association: look up whether the entered phone belongs
+      // to a registered user different from the current buyer.
+      let effectiveUserId: string | null = userId;
+      let buyerUserId: string | null = null;
+      const trimmedPhone = phone.trim();
+      if (trimmedPhone.length >= 7) {
+        const { data: phoneMatch } = await supabase
+          .from('user_profiles')
+          .select('id')
+          .eq('phone', trimmedPhone)
+          .maybeSingle();
+        if (phoneMatch && phoneMatch.id !== userId) {
+          effectiveUserId = phoneMatch.id;
+          buyerUserId = userId;
+        }
       }
-    }
 
-    if (effectiveUserId && effectiveUserId !== userId) {
-      const { data: targetBalData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: effectiveUserId });
-      const targetBalance = typeof targetBalData === 'number' ? targetBalData : 0;
-      if (targetBalance < totalPrice) {
-        showToast(isEn ? `Insufficient balance in target account. Required: ${totalPrice} L-Coin, Available: ${targetBalance} L-Coin` : `目标账户余额不足，需 ${totalPrice} L-Coin，可用 ${targetBalance} L-Coin`, 'error');
-        setSubmitting(false);
-        return;
-      }
-    }
-
-    let successCount = 0;
-    const errors: string[] = [];
-
-    for (let i = 0; i < orders.length; i++) {
-      const order = orders[i];
-      setProgress({ done: i, total: totalOrders });
-
-      const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
-      const ticketType = order.ticketType;
-
-      const bookResult = await callEdgeFunction('book-ticket', {
-        p_session_id: session.id,
-        p_seat_id: seatId ?? null,
-        p_name: name.trim(),
-        p_phone: trimmedPhone,
-        p_user_id: effectiveUserId ?? null,
-        p_ticket_type: ticketType,
-        p_buyer_user_id: buyerUserId ?? null,
-        p_note_content: noteContent.trim() || null,
-      });
-      const rpcResult = bookResult.data as any;
-
-      if (bookResult.error || !rpcResult?.success) {
-        if (rpcResult?.error === 'sold_out') {
-          onSoldOut();
+      if (effectiveUserId && effectiveUserId !== userId) {
+        const { data: targetBalData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: effectiveUserId });
+        const targetBalance = typeof targetBalData === 'number' ? targetBalData : 0;
+        if (targetBalance < totalPrice) {
+          showToast(isEn ? `Insufficient balance in target account. Required: ${totalPrice} L-Coin, Available: ${targetBalance} L-Coin` : `目标账户余额不足，需 ${totalPrice} L-Coin，可用 ${targetBalance} L-Coin`, 'error');
           setSubmitting(false);
           return;
-        } else if (rpcResult?.error === 'insufficient_balance') {
-          const required = rpcResult.required || totalPrice;
-          showToast(isEn ? `Insufficient L-Coin balance. Required: ${required} L-Coin` : `兰克币余额不足，需 ${required} L-Coin`, 'error');
-          setSubmitting(false);
-          return;
-        } else if (rpcResult?.error === 'seat_taken' || rpcResult?.error === 'lock_expired') {
-          errors.push(hasSeats ? (order as SeatWithTicket).seatName : `Order ${i + 1}`);
-        } else if (rpcResult?.error === 'invalid_remark') {
-          errors.push('remark');
+        }
+      }
+
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < orders.length; i++) {
+        const order = orders[i];
+        setProgress({ done: i, total: totalOrders });
+
+        const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
+        const ticketType = order.ticketType;
+
+        const bookResult = await callEdgeFunction('book-ticket', {
+          p_session_id: session.id,
+          p_seat_id: seatId ?? null,
+          p_name: name.trim(),
+          p_phone: trimmedPhone,
+          p_user_id: effectiveUserId ?? null,
+          p_ticket_type: ticketType,
+          p_buyer_user_id: buyerUserId ?? null,
+          p_note_content: noteContent.trim() || null,
+        });
+        const rpcResult = bookResult.data as any;
+
+        if (bookResult.error || !rpcResult?.success) {
+          if (rpcResult?.error === 'sold_out') {
+            onSoldOut();
+            setSubmitting(false);
+            return;
+          } else if (rpcResult?.error === 'insufficient_balance') {
+            const required = rpcResult.required || totalPrice;
+            showToast(isEn ? `Insufficient L-Coin balance. Required: ${required} L-Coin` : `兰克币余额不足，需 ${required} L-Coin`, 'error');
+            setSubmitting(false);
+            return;
+          } else if (rpcResult?.error === 'seat_taken' || rpcResult?.error === 'lock_expired') {
+            errors.push(hasSeats ? (order as SeatWithTicket).seatName : `Order ${i + 1}`);
+          } else if (rpcResult?.error === 'invalid_remark') {
+            errors.push('remark');
+          } else {
+            errors.push(`Order ${i + 1}`);
+          }
         } else {
-          errors.push(`Order ${i + 1}`);
+          successCount++;
+        }
+      }
+
+      setSubmitting(false);
+
+      if (successCount === totalOrders) {
+        onSuccess();
+      } else if (successCount > 0) {
+        onSuccess();
+      } else if (errors.length > 0) {
+        if (errors.includes('remark')) {
+          showToast(isEn ? 'Remark is too long. Please limit to 20 words or 120 characters.' : '备注内容过长，请精简至30字以内。', 'error');
+        } else if (errors.some(e => e.includes('Order'))) {
+          showToast(isEn ? 'System busy or remark format error. Please check remark length.' : '系统繁忙或备注格式错误，请检查备注长度', 'error');
+        } else {
+          setError(isEn ? `Some bookings failed: ${errors.join(', ')}` : `部分预订失败: ${errors.join(', ')}`);
         }
       } else {
-        successCount++;
+        setError(t('booking_failed'));
       }
-    }
-
-    setSubmitting(false);
-
-    if (successCount === totalOrders) {
-      onSuccess();
-    } else if (successCount > 0) {
-      onSuccess();
-    } else if (errors.length > 0) {
-      if (errors.includes('remark')) {
-        showToast(isEn ? 'Remark is too long. Please limit to 20 words or 120 characters.' : '备注内容过长，请精简至30字以内。', 'error');
-      } else if (errors.some(e => e.includes('Order'))) {
-        showToast(isEn ? 'System busy or remark format error. Please check remark length.' : '系统繁忙或备注格式错误，请检查备注长度', 'error');
-      } else {
-        setError(isEn ? `Some bookings failed: ${errors.join(', ')}` : `部分预订失败: ${errors.join(', ')}`);
-      }
-    } else {
-      setError(t('booking_failed'));
+    } catch (err: any) {
+      console.error('Booking error:', err);
+      setSubmitting(false);
+      showToast(isEn ? 'Booking failed, please try again' : '预订失败，请重试', 'error');
     }
   }
 
@@ -773,89 +779,95 @@ function BookingFormView({
     setSubmitting(true);
     setProgress({ done: 0, total: totalOrders });
 
-    let effectiveUserId: string | null = userId;
-    let buyerUserId: string | null = null;
-    const trimmedPhone = phone.trim();
-    if (trimmedPhone.length >= 7) {
-      const { data: phoneMatch } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('phone', trimmedPhone)
-        .maybeSingle();
-      if (phoneMatch && phoneMatch.id !== userId) {
-        effectiveUserId = phoneMatch.id;
-        buyerUserId = userId;
-      }
-    }
-
-    if (effectiveUserId && effectiveUserId !== userId) {
-      const { data: targetBalData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: effectiveUserId });
-      const targetBalance = typeof targetBalData === 'number' ? targetBalData : 0;
-      if (targetBalance < totalPrice) {
-        showToast(isEn ? `Insufficient balance in target account. Required: ${totalPrice} L-Coin, Available: ${targetBalance} L-Coin` : `目标账户余额不足，需 ${totalPrice} L-Coin，可用 ${targetBalance} L-Coin`, 'error');
-        setSubmitting(false);
-        return;
-      }
-    }
-
-    let successCount = 0;
-    const errors: string[] = [];
-
-    for (let i = 0; i < orders.length; i++) {
-      const order = orders[i];
-      setProgress({ done: i, total: totalOrders });
-
-      const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
-      const ticketType = order.ticketType;
-
-      const bookResult = await callEdgeFunction('book-ticket', {
-        p_session_id: session.id,
-        p_seat_id: seatId ?? null,
-        p_name: name.trim(),
-        p_phone: trimmedPhone,
-        p_user_id: effectiveUserId ?? null,
-        p_ticket_type: ticketType,
-        p_buyer_user_id: buyerUserId ?? null,
-        p_note_content: noteContent.trim() || null,
-      });
-      const rpcResult = bookResult.data as any;
-
-      if (bookResult.error || !rpcResult?.success) {
-        if (rpcResult?.error === 'sold_out') {
-          onSoldOut();
-          setSubmitting(false);
-          return;
-        } else if (rpcResult?.error === 'insufficient_balance') {
-          const required = rpcResult.required || totalPrice;
-          showToast(isEn ? `Insufficient L-Coin balance. Required: ${required} L-Coin` : `兰克币余额不足，需 ${required} L-Coin`, 'error');
-          setSubmitting(false);
-          return;
-        } else if (rpcResult?.error === 'seat_taken' || rpcResult?.error === 'lock_expired') {
-          errors.push(hasSeats ? (order as SeatWithTicket).seatName : `Order ${i + 1}`);
-        } else if (rpcResult?.error === 'invalid_remark') {
-          errors.push('remark');
-        } else {
-          errors.push(`Order ${i + 1}`);
+    try {
+      let effectiveUserId: string | null = userId;
+      let buyerUserId: string | null = null;
+      const trimmedPhone = phone.trim();
+      if (trimmedPhone.length >= 7) {
+        const { data: phoneMatch } = await supabase
+          .from('user_profiles')
+          .select('id')
+          .eq('phone', trimmedPhone)
+          .maybeSingle();
+        if (phoneMatch && phoneMatch.id !== userId) {
+          effectiveUserId = phoneMatch.id;
+          buyerUserId = userId;
         }
-      } else {
-        successCount++;
       }
-    }
 
-    setSubmitting(false);
-
-    if (successCount === totalOrders) {
-      showToast(isEn ? 'Booking successful!' : '预约成功！', 'success');
-      onSuccess();
-    } else if (successCount > 0) {
-      showToast(isEn ? `Partial success: ${successCount}/${totalOrders}` : `部分成功: ${successCount}/${totalOrders}`, 'warning');
-      onSuccess();
-    } else {
-      if (errors.includes('remark')) {
-        setError(isEn ? 'Invalid remark content' : '备注内容无效');
-      } else {
-        setError(isEn ? `All bookings failed: ${errors.join(', ')}` : `全部预订失败: ${errors.join(', ')}`);
+      if (effectiveUserId && effectiveUserId !== userId) {
+        const { data: targetBalData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: effectiveUserId });
+        const targetBalance = typeof targetBalData === 'number' ? targetBalData : 0;
+        if (targetBalance < totalPrice) {
+          showToast(isEn ? `Insufficient balance in target account. Required: ${totalPrice} L-Coin, Available: ${targetBalance} L-Coin` : `目标账户余额不足，需 ${totalPrice} L-Coin，可用 ${targetBalance} L-Coin`, 'error');
+          setSubmitting(false);
+          return;
+        }
       }
+
+      let successCount = 0;
+      const errors: string[] = [];
+
+      for (let i = 0; i < orders.length; i++) {
+        const order = orders[i];
+        setProgress({ done: i, total: totalOrders });
+
+        const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
+        const ticketType = order.ticketType;
+
+        const bookResult = await callEdgeFunction('book-ticket', {
+          p_session_id: session.id,
+          p_seat_id: seatId ?? null,
+          p_name: name.trim(),
+          p_phone: trimmedPhone,
+          p_user_id: effectiveUserId ?? null,
+          p_ticket_type: ticketType,
+          p_buyer_user_id: buyerUserId ?? null,
+          p_note_content: noteContent.trim() || null,
+        });
+        const rpcResult = bookResult.data as any;
+
+        if (bookResult.error || !rpcResult?.success) {
+          if (rpcResult?.error === 'sold_out') {
+            onSoldOut();
+            setSubmitting(false);
+            return;
+          } else if (rpcResult?.error === 'insufficient_balance') {
+            const required = rpcResult.required || totalPrice;
+            showToast(isEn ? `Insufficient L-Coin balance. Required: ${required} L-Coin` : `兰克币余额不足，需 ${required} L-Coin`, 'error');
+            setSubmitting(false);
+            return;
+          } else if (rpcResult?.error === 'seat_taken' || rpcResult?.error === 'lock_expired') {
+            errors.push(hasSeats ? (order as SeatWithTicket).seatName : `Order ${i + 1}`);
+          } else if (rpcResult?.error === 'invalid_remark') {
+            errors.push('remark');
+          } else {
+            errors.push(`Order ${i + 1}`);
+          }
+        } else {
+          successCount++;
+        }
+      }
+
+      setSubmitting(false);
+
+      if (successCount === totalOrders) {
+        showToast(isEn ? 'Booking successful!' : '预约成功！', 'success');
+        onSuccess();
+      } else if (successCount > 0) {
+        showToast(isEn ? `Partial success: ${successCount}/${totalOrders}` : `部分成功: ${successCount}/${totalOrders}`, 'warning');
+        onSuccess();
+      } else {
+        if (errors.includes('remark')) {
+          setError(isEn ? 'Invalid remark content' : '备注内容无效');
+        } else {
+          setError(isEn ? `All bookings failed: ${errors.join(', ')}` : `全部预订失败: ${errors.join(', ')}`);
+        }
+      }
+    } catch (err: any) {
+      console.error('Payment error:', err);
+      setSubmitting(false);
+      showToast(isEn ? 'Payment failed, please try again' : '支付失败，请重试', 'error');
     }
   }
 
