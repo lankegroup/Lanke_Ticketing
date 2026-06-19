@@ -58,36 +58,23 @@ function seatToEnglish(seat: string): string {
 export function renderTicketToCanvas(p: TicketParams): void {
   const D = 2;
   const W = 651 * D;
-  const PAD = 34 * D;
+  const PAD = 30 * D;
 
-  const activityTimeCn = `${p.sessionDate} ${p.startTime.slice(0, 5)} – ${p.endTime.slice(0, 5)}`;
-  const activityTimeEn = activityTimeCn;
+  const ctx = p.canvas.getContext('2d')!;
 
+  const sessionNameEn = toCnPinyin(p.sessionName);
+  const nameEn = toCnPinyin(p.name);
+  const seatEn = p.seatName ? seatToEnglish(p.seatName) : '';
+
+  const activityTime = `${p.sessionDate} ${p.startTime.slice(0, 5)} - ${p.endTime.slice(0, 5)}`;
   const verifStart = p.verificationStart ? p.verificationStart.slice(0, 5) : '';
   const verifEnd = p.verificationEnd ? p.verificationEnd.slice(0, 5) : '';
   const verifRange = verifStart && verifEnd
-    ? `${p.sessionDate} ${verifStart} – ${verifEnd}`
+    ? `${p.sessionDate} ${verifStart} - ${verifEnd}`
     : '';
-
-  const nameEn = toCnPinyin(p.name);
-  const operatorCn = `前台客服 (工号: ${p.operatorName})`;
-  const operatorEn = `Front Desk Service (Staff ID: ${p.operatorName})`;
-  const seatEn = p.seatName ? seatToEnglish(p.seatName) : '';
-  const sessionNameEn = toCnPinyin(p.sessionName);
 
   const ticketTypeCn: Record<string, string> = { adult: '成人票', child: '儿童票', concession: '优待票' };
   const ticketTypeEn: Record<string, string> = { adult: 'Adult', child: 'Child', concession: 'Concession' };
-  const ticketTypeColor: Record<string, string> = { adult: '#0ea5e9', child: '#10b981', concession: '#f59e0b' };
-
-  let subLabelCn = '活动入场券';
-  let subLabelEn = 'Event Admission Ticket';
-  if (p.orderStatus === 'cancelled' || p.orderStatus === 'expired') {
-    subLabelCn = '活动预订证明';
-    subLabelEn = 'Event Booking Proof';
-  } else if (p.orderStatus === 'used') {
-    subLabelCn = '活动入场证明';
-    subLabelEn = 'Event Admission Proof';
-  }
 
   const paymentMethod = p.paymentMethod || 'rmb';
   const getCurrencyInfo = () => {
@@ -99,51 +86,14 @@ export function renderTicketToCanvas(p: TicketParams): void {
   };
   const currency = getCurrencyInfo();
   const totalAmount = (p.ticketPrice ?? 0) + (p.serviceFee ?? 0);
-  const mixedRmbInfo = paymentMethod === 'mixed' && p.rmbAmount !== undefined && p.rmbAmount > 0
-    ? ` (人民币支付 ¥${p.rmbAmount.toFixed(2)})`
-    : '';
 
-  const hasPrice = p.ticketPrice !== undefined;
-  const hasFee = p.serviceFee !== undefined && p.serviceFee > 0;
-  const hasTotal = hasPrice;
-
-  const rows = [
-    { cn: '活动时间', en: 'Event Time', cnVal: activityTimeCn, enVal: activityTimeEn },
-    ...(verifRange ? [{ cn: '核销时间', en: 'Check-in Time', cnVal: verifRange, enVal: verifRange }] : []),
-    { cn: '用户名', en: 'Username', cnVal: p.name, enVal: nameEn },
-    ...(p.seatName ? [{ cn: '座位', en: 'Seat', cnVal: p.seatName, enVal: seatEn }] : []),
-    ...(p.ticketType ? [{ cn: '票种', en: 'Ticket Type', cnVal: ticketTypeCn[p.ticketType], enVal: ticketTypeEn[p.ticketType], color: ticketTypeColor[p.ticketType] }] : []),
-    { cn: '操作员', en: 'Operator', cnVal: operatorCn, enVal: operatorEn },
-    { cn: '下单时间', en: 'Order Time', cnVal: p.orderTime, enVal: p.orderTime },
-    ...(hasPrice ? [{ type: 'price' }] : []),
-    ...(hasTotal ? [{ type: 'total' }] : []),
-    ...(p.paidAt ? [{ cn: '付款时间', en: 'Payment Time', cnVal: p.paidAt, enVal: p.paidAt }] : []),
-    ...(p.printedAt ? [{ cn: '打印时间', en: 'Print Time', cnVal: p.printedAt, enVal: p.printedAt }] : []),
-  ];
-
-  const ctx = p.canvas.getContext('2d')!;
-
-  const QR_SIZE = 260 * D;
-  const LABEL_SIZE = 22 * D;
-  const EN_LABEL_SIZE = 22 * D;
-  const VALUE_SIZE = 28 * D;
-  const EN_VALUE_SIZE = 26 * D;
-  const ROW_HEIGHT = 72 * D;
-
-  const LABEL_COLOR = '#5c4a3a';
-  const LABEL_COLOR_EN = '#9b8b7b';
-  const VALUE_COLOR = '#0f172a';
-  const VALUE_COLOR_EN = '#374151';
-
-  const BADGE_TOP = 22 * D;
-  const HEADER_CN_Y = 76 * D;
-  const HEADER_EN_Y = 104 * D;
-  const HEADER_H = 120 * D;
-  const DATA_START_Y = HEADER_H + 20 * D;
-  const PERF_Y = DATA_START_Y + rows.length * ROW_HEIGHT;
-  const QR_Y = PERF_Y + 30 * D;
-  const FOOTER_H = 260 * D;
-  const H = QR_Y + QR_SIZE + FOOTER_H;
+  const QR_SIZE = 240 * D;
+  
+  const HEADER_H = 140 * D;
+  const INFO_H = 380 * D;
+  const QR_H = QR_SIZE + 80 * D;
+  const FOOTER_H = 160 * D;
+  const H = HEADER_H + INFO_H + QR_H + FOOTER_H;
 
   p.canvas.width = W;
   p.canvas.height = H;
@@ -151,209 +101,278 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
 
-  const grad = ctx.createLinearGradient(0, 0, W, 0);
-  grad.addColorStop(0, '#0ea5e9');
-  grad.addColorStop(1, '#06b6d4');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, 11 * D);
-
   ctx.strokeStyle = '#e2e8f0';
   ctx.lineWidth = 1.5 * D;
   ctx.strokeRect(1, 1, W - 2, H - 2);
 
-  // ── Badges ───────────────────────────────────────────────────────────
-  function drawBadge(label: string, color: string) {
-    ctx.font = `bold ${26 * D}px sans-serif`;
+  // ── Brand Header ───────────────────────────────────────────────────────
+  const brandGrad = ctx.createLinearGradient(0, 0, W, 0);
+  brandGrad.addColorStop(0, '#1e40af');
+  brandGrad.addColorStop(1, '#3b82f6');
+  ctx.fillStyle = brandGrad;
+  ctx.fillRect(0, 0, W, 45 * D);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = `bold ${24 * D}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('LANKE GROUP TICKETING', W / 2, 22 * D);
+
+  // ── Badges ────────────────────────────────────────────────────────────
+  function drawBadge(label: string, color: string, y: number) {
+    ctx.font = `bold ${20 * D}px sans-serif`;
     const textWidth = ctx.measureText(label).width;
-    const paddingX = 18 * D;
-    const paddingY = 8 * D;
+    const paddingX = 14 * D;
+    const paddingY = 6 * D;
     const BW = textWidth + paddingX * 2;
-    const BH = 26 * D + paddingY * 2;
-    const BX = W - PAD - BW - 8 * D;
+    const BH = 20 * D + paddingY * 2;
+    const BX = W - PAD - BW;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.roundRect(BX, BADGE_TOP, BW, BH, 12 * D);
+    ctx.roundRect(BX, y, BW, BH, 8 * D);
     ctx.fill();
     ctx.fillStyle = '#ffffff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(label, BX + BW / 2, BADGE_TOP + BH / 2);
-    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label, BX + BW / 2, y + BH / 2);
     ctx.textAlign = 'left';
   }
-  if (p.isReprint) drawBadge('补打小票', '#dc2626');
-  if (p.isSupplementary) drawBadge('补票', '#f97316');
 
-  // ── Header ───────────────────────────────────────────────────────────
-  ctx.textBaseline = 'bottom';
+  let badgeY = 55 * D;
+  if (p.isReprint) {
+    drawBadge('补打小票', '#dc2626', badgeY);
+    badgeY += 36 * D;
+  }
+  if (p.isSupplementary) {
+    drawBadge('补票', '#f97316', badgeY);
+    badgeY += 36 * D;
+  }
 
-  ctx.font = `bold ${36 * D}px sans-serif`;
-  ctx.fillStyle = '#0f172a';
-  ctx.fillText(p.sessionName, PAD, HEADER_CN_Y);
-
-  ctx.font = `bold ${24 * D}px sans-serif`;
-  ctx.fillText(sessionNameEn, PAD, HEADER_EN_Y);
-
-  ctx.font = `${20 * D}px sans-serif`;
-  ctx.fillStyle = '#0ea5e9';
-  ctx.textAlign = 'right';
-  ctx.fillText(subLabelCn, W - PAD, HEADER_CN_Y);
-
-  ctx.font = `${18 * D}px sans-serif`;
-  ctx.fillText(subLabelEn, W - PAD, HEADER_EN_Y);
+  // ── Session Title ──────────────────────────────────────────────────────
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 
-  // ── Divider ──────────────────────────────────────────────────────────
-  ctx.setLineDash([12 * D, 4 * D]);
-  ctx.strokeStyle = '#1f2937';
-  ctx.lineWidth = 4 * D;
+  ctx.font = `bold ${42 * D}px sans-serif`;
+  ctx.fillStyle = '#1e293b';
+  ctx.fillText(p.sessionName, PAD, 75 * D);
+
+  ctx.font = `bold ${22 * D}px sans-serif`;
+  ctx.fillStyle = '#64748b';
+  ctx.fillText(sessionNameEn, PAD, 105 * D);
+
+  ctx.font = `${18 * D}px sans-serif`;
+  ctx.fillStyle = '#3b82f6';
+  ctx.textAlign = 'right';
+  ctx.fillText('活动入场券 / Event Admission Ticket', W - PAD, 75 * D);
+  ctx.textAlign = 'left';
+
+  // ── Header Divider ────────────────────────────────────────────────────
+  ctx.setLineDash([10 * D, 4 * D]);
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 2 * D;
   ctx.beginPath();
   ctx.moveTo(PAD, HEADER_H);
   ctx.lineTo(W - PAD, HEADER_H);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // ── Draw standard row ────────────────────────────────────────────────
-  function drawRow(cnLabel: string, enLabel: string, cnValue: string, enValue: string, y: number, color?: string) {
-    const textColor = color ?? VALUE_COLOR;
-    const enTextColor = color === undefined ? VALUE_COLOR_EN : color;
+  // ── Info Section ──────────────────────────────────────────────────────
+  const infoStart = HEADER_H + 20 * D;
+  const col1Width = W / 2;
+  const col2Width = W / 2;
 
-    ctx.fillStyle = LABEL_COLOR;
-    ctx.font = `${LABEL_SIZE}px sans-serif`;
+  function drawInfoLine(cnLabel: string, enLabel: string, value: string, y: number) {
+    ctx.font = `${18 * D}px sans-serif`;
+    ctx.fillStyle = '#64748b';
     ctx.fillText(cnLabel, PAD, y);
+    
+    ctx.font = `${16 * D}px sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(enLabel, PAD, y + 22 * D);
 
-    ctx.fillStyle = LABEL_COLOR_EN;
-    ctx.font = `${EN_LABEL_SIZE}px sans-serif`;
-    ctx.fillText(enLabel, PAD, y + 24 * D);
-
-    ctx.fillStyle = textColor;
-    ctx.font = `${VALUE_SIZE}px sans-serif`;
-    ctx.fillText(cnValue, PAD + 150 * D, y);
-
-    if (cnValue !== enValue) {
-      ctx.fillStyle = enTextColor;
-      ctx.font = `${EN_VALUE_SIZE}px sans-serif`;
-      ctx.fillText(enValue, PAD + 150 * D, y + 24 * D);
-    }
+    ctx.font = `${20 * D}px sans-serif`;
+    ctx.fillStyle = '#1e293b';
+    ctx.fillText(value, PAD + 120 * D, y);
   }
 
-  // ── Draw price/fee row ────────────────────────────────────────────────
-  function drawPriceFeeRow(y: number) {
-    ctx.fillStyle = LABEL_COLOR;
-    ctx.font = `${LABEL_SIZE}px sans-serif`;
-    ctx.fillText('票价', PAD, y);
+  let iy = infoStart;
 
-    ctx.fillStyle = LABEL_COLOR_EN;
-    ctx.font = `${EN_LABEL_SIZE}px sans-serif`;
-    ctx.fillText('Ticket Price', PAD, y + 24 * D);
+  drawInfoLine('活动时间', 'Event Time', activityTime, iy);
+  iy += 55 * D;
 
-    ctx.fillStyle = VALUE_COLOR;
-    ctx.font = `${VALUE_SIZE}px sans-serif`;
-    const priceValue = p.ticketPrice !== undefined
-      ? `${currency.symbol}${p.ticketPrice.toFixed(2)}${currency.cnUnit ? `/${p.ticketPrice.toFixed(2)}${currency.cnUnit}` : ''}`
-      : '';
-    ctx.fillText(priceValue, PAD + 150 * D, y);
-
-    if (hasFee) {
-      const feeLabelX = W - PAD - 180 * D;
-
-      ctx.fillStyle = LABEL_COLOR;
-      ctx.font = `${LABEL_SIZE}px sans-serif`;
-      ctx.fillText('手续费', feeLabelX, y);
-
-      ctx.fillStyle = LABEL_COLOR_EN;
-      ctx.font = `${EN_LABEL_SIZE}px sans-serif`;
-      ctx.fillText('Service Fee', feeLabelX, y + 24 * D);
-
-      ctx.fillStyle = VALUE_COLOR;
-      ctx.font = `${VALUE_SIZE}px sans-serif`;
-      ctx.textAlign = 'right';
-      const feeValue = `${currency.symbol}${p.serviceFee!.toFixed(2)}${currency.cnUnit ? `/${p.serviceFee!.toFixed(2)}${currency.cnUnit}` : ''}`;
-      ctx.fillText(feeValue, W - PAD, y);
-      ctx.textAlign = 'left';
-    }
+  if (verifRange) {
+    drawInfoLine('核销时间', 'Check-in Time', verifRange, iy);
+    iy += 55 * D;
   }
 
-  // ── Draw total row ────────────────────────────────────────────────────
-  function drawTotalRow(y: number) {
-    ctx.fillStyle = LABEL_COLOR;
-    ctx.font = `${LABEL_SIZE}px sans-serif`;
-    ctx.fillText('合计', PAD, y);
+  drawInfoLine('用户名', 'Username', p.name + (nameEn !== p.name ? ` / ${nameEn}` : ''), iy);
+  iy += 55 * D;
 
-    ctx.fillStyle = LABEL_COLOR_EN;
-    ctx.font = `${EN_LABEL_SIZE}px sans-serif`;
-    ctx.fillText('Total', PAD, y + 24 * D);
-
-    ctx.fillStyle = VALUE_COLOR;
-    ctx.font = `${VALUE_SIZE}px sans-serif`;
-    const totalValue = `${currency.symbol}${totalAmount.toFixed(2)}${currency.cnUnit ? `/${totalAmount.toFixed(2)}${currency.cnUnit}` : ''}${mixedRmbInfo}`;
-    ctx.fillText(totalValue, PAD + 150 * D, y);
+  if (p.seatName) {
+    drawInfoLine('座位', 'Seat', p.seatName + (seatEn !== p.seatName ? ` / ${seatEn}` : ''), iy);
+    iy += 55 * D;
   }
 
-  // ── Data rows ─────────────────────────────────────────────────────────
-  let iy = DATA_START_Y;
-  for (const row of rows) {
-    if (row.type === 'price') {
-      drawPriceFeeRow(iy);
-    } else if (row.type === 'total') {
-      drawTotalRow(iy);
-    } else {
-      drawRow(row.cn!, row.en!, row.cnVal!, row.enVal!, iy, row.color);
-    }
-    iy += ROW_HEIGHT;
+  if (p.ticketType) {
+    ctx.font = `${18 * D}px sans-serif`;
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('票种', PAD, iy);
+    
+    ctx.font = `${16 * D}px sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('Ticket Type', PAD, iy + 22 * D);
+
+    ctx.font = `bold ${22 * D}px sans-serif`;
+    ctx.fillStyle = '#0ea5e9';
+    ctx.fillText(ticketTypeCn[p.ticketType] + ' / ' + ticketTypeEn[p.ticketType], PAD + 120 * D, iy);
+    iy += 55 * D;
   }
 
-  // ── Perforation ──────────────────────────────────────────────────────
-  ctx.setLineDash([12 * D, 4 * D]);
-  ctx.strokeStyle = '#1f2937';
-  ctx.lineWidth = 4 * D;
+  drawInfoLine('操作员', 'Operator', `前台客服 (ID: ${p.operatorName})`, iy);
+  iy += 55 * D;
+
+  // ── Price Section ─────────────────────────────────────────────────────
+  iy += 10 * D;
+  ctx.setLineDash([8 * D, 3 * D]);
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1.5 * D;
   ctx.beginPath();
-  ctx.moveTo(PAD, PERF_Y);
-  ctx.lineTo(W - PAD, PERF_Y);
+  ctx.moveTo(PAD, iy);
+  ctx.lineTo(W - PAD, iy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  iy += 20 * D;
+
+  ctx.font = `bold ${20 * D}px sans-serif`;
+  ctx.fillStyle = '#475569';
+  ctx.fillText('票价', PAD, iy);
+  
+  ctx.font = `${16 * D}px sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('Ticket Price', PAD, iy + 20 * D);
+
+  ctx.font = `bold ${28 * D}px sans-serif`;
+  ctx.fillStyle = '#1e293b';
+  const priceText = p.ticketPrice !== undefined
+    ? `${currency.symbol}${p.ticketPrice.toFixed(2)}${currency.cnUnit ? ` ${currency.cnUnit}` : ''}`
+    : '';
+  ctx.fillText(priceText, PAD + 120 * D, iy);
+
+  if (p.serviceFee !== undefined && p.serviceFee > 0) {
+    ctx.font = `bold ${20 * D}px sans-serif`;
+    ctx.fillStyle = '#475569';
+    ctx.textAlign = 'right';
+    ctx.fillText('手续费', W - PAD, iy);
+    
+    ctx.font = `${16 * D}px sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('Service Fee', W - PAD, iy + 20 * D);
+
+    ctx.font = `bold ${28 * D}px sans-serif`;
+    ctx.fillStyle = '#1e293b';
+    const feeText = `${currency.symbol}${p.serviceFee.toFixed(2)}${currency.cnUnit ? ` ${currency.cnUnit}` : ''}`;
+    ctx.fillText(feeText, W - PAD, iy);
+    ctx.textAlign = 'left';
+  }
+
+  iy += 55 * D;
+
+  ctx.font = `bold ${22 * D}px sans-serif`;
+  ctx.fillStyle = '#1e40af';
+  ctx.fillText('合计', PAD, iy);
+  
+  ctx.font = `${16 * D}px sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('Total', PAD, iy + 20 * D);
+
+  ctx.font = `bold ${32 * D}px sans-serif`;
+  ctx.fillStyle = '#dc2626';
+  const totalText = `${currency.symbol}${totalAmount.toFixed(2)}${currency.cnUnit ? ` ${currency.cnUnit}` : ''}`;
+  ctx.textAlign = 'right';
+  ctx.fillText(totalText, W - PAD, iy);
+  ctx.textAlign = 'left';
+
+  iy += 50 * D;
+
+  if (p.orderTime) {
+    ctx.font = `${16 * D}px sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`下单时间 / Order Time: ${p.orderTime}`, PAD, iy);
+  }
+
+  if (p.paidAt) {
+    iy += 25 * D;
+    ctx.font = `${16 * D}px sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`付款时间 / Payment Time: ${p.paidAt}`, PAD, iy);
+  }
+
+  if (p.printedAt) {
+    iy += 25 * D;
+    ctx.font = `${16 * D}px sans-serif`;
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText(`打印时间 / Print Time: ${p.printedAt}`, PAD, iy);
+  }
+
+  // ── Perforation Line ──────────────────────────────────────────────────
+  const perfY = HEADER_H + INFO_H;
+  ctx.setLineDash([15 * D, 5 * D]);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 3 * D;
+  ctx.beginPath();
+  ctx.moveTo(PAD, perfY);
+  ctx.lineTo(W - PAD, perfY);
   ctx.stroke();
   ctx.setLineDash([]);
 
-  // ── QR code ──────────────────────────────────────────────────────────
+  // ── QR Code Section ───────────────────────────────────────────────────
   const qrX = (W - QR_SIZE) / 2;
+  const qrY = perfY + 30 * D;
+
   ctx.fillStyle = '#f8fafc';
   ctx.beginPath();
-  ctx.roundRect(qrX - 12 * D, QR_Y - 12 * D, QR_SIZE + 24 * D, QR_SIZE + 24 * D, 14 * D);
+  ctx.roundRect(qrX - 15 * D, qrY - 15 * D, QR_SIZE + 30 * D, QR_SIZE + 30 * D, 16 * D);
   ctx.fill();
+
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1 * D;
+  ctx.stroke();
+
   if (p.qrEl) {
-    ctx.drawImage(p.qrEl, qrX, QR_Y, QR_SIZE, QR_SIZE);
+    ctx.drawImage(p.qrEl, qrX, qrY, QR_SIZE, QR_SIZE);
   } else {
     ctx.fillStyle = '#e2e8f0';
-    ctx.fillRect(qrX, QR_Y, QR_SIZE, QR_SIZE);
+    ctx.fillRect(qrX, qrY, QR_SIZE, QR_SIZE);
   }
 
-  // ── Footer ────────────────────────────────────────────────────────────
+  // ── Ticket Code ───────────────────────────────────────────────────────
+  ctx.font = `bold ${30 * D}px monospace`;
+  ctx.fillStyle = '#1e40af';
   ctx.textAlign = 'center';
-  const fBase = QR_Y + QR_SIZE;
+  ctx.fillText(p.ticketCode, W / 2, qrY + QR_SIZE + 45 * D);
 
-  ctx.fillStyle = '#0369a1';
-  ctx.font = `bold ${28 * D}px monospace`;
-  ctx.fillText(p.ticketCode, W / 2, fBase + 28 * D);
+  // ── Footer ────────────────────────────────────────────────────────────
+  const footerStart = qrY + QR_SIZE + 70 * D;
 
-  ctx.fillStyle = '#78716c';
-  ctx.font = `${18 * D}px sans-serif`;
-  ctx.fillText('入场时出示二维码供工作人员核销', W / 2, fBase + 52 * D);
+  ctx.font = `${16 * D}px sans-serif`;
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('入场时出示此二维码供工作人员核销', W / 2, footerStart);
 
-  ctx.fillStyle = '#a8a29e';
-  ctx.font = `${18 * D}px sans-serif`;
-  ctx.fillText('Present QR code at entrance for staff verification', W / 2, fBase + 72 * D);
+  ctx.font = `${14 * D}px sans-serif`;
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('Present QR code at entrance for staff verification', W / 2, footerStart + 22 * D);
 
-  ctx.fillStyle = '#0284c7';
-  ctx.font = `${20 * D}px sans-serif`;
-  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, fBase + 98 * D);
+  ctx.font = `${14 * D}px sans-serif`;
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillText('https://lankegroup-booking.netlify.app/', W / 2, footerStart + 48 * D);
 
-  ctx.fillStyle = '#a8a29e';
   ctx.font = `${12 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, fBase + 120 * D);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('© 兰克集团数智一体化票务运营平台版权所有', W / 2, footerStart + 75 * D);
 
-  ctx.fillStyle = '#a8a29e';
   ctx.font = `${12 * D}px sans-serif`;
-  ctx.fillText('Copyright © Lanke Group Digital Integrated Ticketing Platform. All Rights Reserved.', W / 2, fBase + 144 * D);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('Copyright © Lanke Group Digital Integrated Ticketing Platform. All Rights Reserved.', W / 2, footerStart + 95 * D);
 
   ctx.textAlign = 'left';
 }
