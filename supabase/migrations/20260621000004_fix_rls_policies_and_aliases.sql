@@ -68,7 +68,8 @@ INSERT INTO lcoin_exchange_rate (lcoin_to_rmb, rmb_to_lcoin) SELECT 1.0, 1.0 WHE
 ALTER TABLE IF EXISTS lcoin_accounts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY lcoin_account_select_own ON lcoin_accounts FOR SELECT TO authenticated USING (auth.uid() = user_id);
 CREATE POLICY lcoin_account_select_admin ON lcoin_accounts FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
-CREATE POLICY lcoin_account_insert_update ON lcoin_accounts FOR INSERT, UPDATE TO authenticated WITH CHECK (true);
+CREATE POLICY lcoin_account_insert ON lcoin_accounts FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY lcoin_account_update ON lcoin_accounts FOR UPDATE TO authenticated WITH CHECK (true);
 
 ALTER TABLE IF EXISTS lcoin_transactions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY lcoin_transaction_select_own ON lcoin_transactions FOR SELECT TO authenticated USING (auth.uid() = user_id);
@@ -77,11 +78,15 @@ CREATE POLICY lcoin_transaction_insert ON lcoin_transactions FOR INSERT TO authe
 
 ALTER TABLE IF EXISTS lcoin_packages ENABLE ROW LEVEL SECURITY;
 CREATE POLICY lcoin_package_select_all ON lcoin_packages FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY lcoin_package_admin_only ON lcoin_packages FOR INSERT, UPDATE, DELETE TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
+CREATE POLICY lcoin_package_insert ON lcoin_packages FOR INSERT TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
+CREATE POLICY lcoin_package_update ON lcoin_packages FOR UPDATE TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
+CREATE POLICY lcoin_package_delete ON lcoin_packages FOR DELETE TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
 
 ALTER TABLE IF EXISTS lcoin_exchange_rate ENABLE ROW LEVEL SECURITY;
 CREATE POLICY lcoin_exchange_rate_select_all ON lcoin_exchange_rate FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY lcoin_exchange_rate_admin_only ON lcoin_exchange_rate FOR INSERT, UPDATE, DELETE TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
+CREATE POLICY lcoin_exchange_rate_insert ON lcoin_exchange_rate FOR INSERT TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
+CREATE POLICY lcoin_exchange_rate_update ON lcoin_exchange_rate FOR UPDATE TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
+CREATE POLICY lcoin_exchange_rate_delete ON lcoin_exchange_rate FOR DELETE TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
 
 ALTER TABLE IF EXISTS order_audit_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY order_audit_select_admin ON order_audit_logs FOR SELECT TO authenticated USING (EXISTS (SELECT 1 FROM admin_profiles WHERE id = auth.uid()));
@@ -93,7 +98,9 @@ CREATE POLICY notification_insert_admin ON notifications FOR INSERT TO authentic
 
 ALTER TABLE IF EXISTS seat_locks ENABLE ROW LEVEL SECURITY;
 CREATE POLICY seat_lock_select_all ON seat_locks FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY seat_lock_insert_update_delete ON seat_locks FOR INSERT, UPDATE, DELETE TO authenticated, anon WITH CHECK (true);
+CREATE POLICY seat_lock_insert ON seat_locks FOR INSERT TO authenticated, anon WITH CHECK (true);
+CREATE POLICY seat_lock_update ON seat_locks FOR UPDATE TO authenticated, anon WITH CHECK (true);
+CREATE POLICY seat_lock_delete ON seat_locks FOR DELETE TO authenticated, anon WITH CHECK (true);
 
 ALTER TABLE IF EXISTS registrations ENABLE ROW LEVEL SECURITY;
 CREATE POLICY registration_select_own ON registrations FOR SELECT TO authenticated USING (auth.uid() = user_id);
