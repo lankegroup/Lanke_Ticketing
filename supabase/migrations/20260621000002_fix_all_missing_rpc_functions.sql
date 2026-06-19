@@ -424,7 +424,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  DELETE FROM seat_locks WHERE seat_id = p_seat_id;
+  DELETE FROM seat_locks WHERE seat_id = p_seat_id AND user_id = auth.uid();
 END;
 $$;
 
@@ -437,12 +437,13 @@ DROP FUNCTION IF EXISTS public.get_seat_map(uuid);
 CREATE OR REPLACE FUNCTION public.get_seat_map(p_session_id UUID)
 RETURNS TABLE (
   id UUID,
-  session_id UUID,
   row_index INT,
   col_index INT,
   seat_name TEXT,
-  is_blocked BOOLEAN,
-  status TEXT
+  is_booked BOOLEAN,
+  is_locked BOOLEAN,
+  locked_by_me BOOLEAN,
+  is_blocked BOOLEAN
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -452,16 +453,26 @@ BEGIN
   RETURN QUERY
   SELECT
     s.id,
-    s.session_id,
     s.row_index,
     s.col_index,
     s.seat_name,
-    s.is_blocked,
-    COALESCE(r.status, 'available')::TEXT AS status
+    EXISTS(
+      SELECT 1 FROM registrations r
+      WHERE r.seat_id = s.id
+        AND r.status NOT IN ('cancelled', 'expired')
+    ) AS is_booked,
+    EXISTS(
+      SELECT 1 FROM seat_locks sl
+      WHERE sl.seat_id = s.id AND sl.expires_at > NOW()
+    ) AS is_locked,
+    EXISTS(
+      SELECT 1 FROM seat_locks sl
+      WHERE sl.seat_id = s.id
+        AND sl.expires_at > NOW()
+        AND sl.user_id = auth.uid()
+    ) AS locked_by_me,
+    COALESCE(s.is_blocked, FALSE) AS is_blocked
   FROM seats s
-  LEFT JOIN registrations r ON r.seat_id = s.id
-    AND r.status NOT IN ('cancelled', 'expired')
-    AND r.deleted_at IS NULL
   WHERE s.session_id = p_session_id
   ORDER BY s.row_index, s.col_index;
 END;
@@ -473,36 +484,48 @@ GRANT EXECUTE ON FUNCTION public.get_seat_map(UUID) TO authenticated;
 -- 12. lock_seat - 锁定座位
 DROP FUNCTION IF EXISTS public.lock_seat(uuid,uuid,timestamptz);
 
-CREATE OR REPLACE FUNCTION public.lock_seat(
-  p_seat_id UUID,
-  p_user_id UUID DEFAULT NULL,
-  p_expires_at TIMESTAMPTZ DEFAULT NULL
-)
+CREATE OR REPLACE FUNCTION public.lock_seat(p_seat_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_existing UUID;
+  v_user_id UUID := auth.uid();
+  v_expires TIMESTAMPTZ;
 BEGIN
-  SELECT user_id INTO v_existing FROM seat_locks WHERE seat_id = p_seat_id;
-  IF v_existing IS NOT NULL AND v_existing <> COALESCE(p_user_id, '00000000-0000-0000-0000-000000000000'::UUID) THEN
-    RETURN jsonb_build_object('success', false, 'error', 'already_locked');
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'reason', 'not_authenticated');
   END IF;
 
-  INSERT INTO seat_locks (seat_id, user_id, expires_at)
-  VALUES (p_seat_id, p_user_id, COALESCE(p_expires_at, NOW() + INTERVAL '5 minutes'))
-  ON CONFLICT (seat_id) DO UPDATE SET
-    user_id = EXCLUDED.user_id,
-    expires_at = EXCLUDED.expires_at,
-    locked_at = NOW();
+  IF EXISTS (
+    SELECT 1 FROM registrations
+    WHERE seat_id = p_seat_id
+      AND status NOT IN ('cancelled', 'expired')
+  ) THEN
+    RETURN jsonb_build_object('success', false, 'reason', 'already_booked');
+  END IF;
 
-  RETURN jsonb_build_object('success', true, 'expires_at', COALESCE(p_expires_at, NOW() + INTERVAL '5 minutes'));
+  IF EXISTS (
+    SELECT 1 FROM seat_locks
+    WHERE seat_id = p_seat_id
+      AND expires_at > NOW()
+      AND user_id != v_user_id
+  ) THEN
+    RETURN jsonb_build_object('success', false, 'reason', 'locked_by_other');
+  END IF;
+
+  DELETE FROM seat_locks WHERE seat_id = p_seat_id;
+
+  INSERT INTO seat_locks (seat_id, user_id, expires_at)
+  VALUES (p_seat_id, v_user_id, NOW() + INTERVAL '5 minutes')
+  RETURNING expires_at INTO v_expires;
+
+  RETURN jsonb_build_object('success', true, 'expires_at', v_expires);
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.lock_seat(UUID, UUID, TIMESTAMPTZ) TO service_role;
-GRANT EXECUTE ON FUNCTION public.lock_seat(UUID, UUID, TIMESTAMPTZ) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.lock_seat(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.lock_seat(UUID) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';
