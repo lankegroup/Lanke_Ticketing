@@ -97,6 +97,8 @@ GRANT EXECUTE ON FUNCTION public.admin_book_ticket(UUID, UUID, TEXT, TEXT, UUID,
 GRANT EXECUTE ON FUNCTION public.admin_book_ticket(UUID, UUID, TEXT, TEXT, UUID, BOOLEAN, TEXT, BOOLEAN, TEXT, TEXT) TO anon;
 
 -- 2. admin_reschedule_seat - 协助换座
+DROP FUNCTION IF EXISTS public.admin_reschedule_seat(uuid,uuid,boolean);
+
 CREATE OR REPLACE FUNCTION public.admin_reschedule_seat(
   p_registration_id UUID,
   p_new_seat_id     UUID,
@@ -191,6 +193,8 @@ GRANT EXECUTE ON FUNCTION public.admin_reschedule_seat(UUID, UUID, BOOLEAN) TO s
 GRANT EXECUTE ON FUNCTION public.admin_reschedule_seat(UUID, UUID, BOOLEAN) TO authenticated;
 
 -- 3. admin_cancel_registration - 取消订单/报名
+DROP FUNCTION IF EXISTS public.admin_cancel_registration(uuid);
+
 CREATE OR REPLACE FUNCTION public.admin_cancel_registration(p_registration_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = 'public' AS $$
@@ -229,6 +233,8 @@ GRANT EXECUTE ON FUNCTION public.admin_cancel_registration(UUID) TO service_role
 GRANT EXECUTE ON FUNCTION public.admin_cancel_registration(UUID) TO authenticated;
 
 -- 4. admin_delete_registration - 删除订单（软删除）
+DROP FUNCTION IF EXISTS public.admin_delete_registration(uuid,text);
+
 CREATE OR REPLACE FUNCTION public.admin_delete_registration(
   p_registration_id UUID,
   p_note TEXT DEFAULT NULL
@@ -260,6 +266,8 @@ GRANT EXECUTE ON FUNCTION public.admin_delete_registration(UUID, TEXT) TO servic
 GRANT EXECUTE ON FUNCTION public.admin_delete_registration(UUID, TEXT) TO authenticated;
 
 -- 5. auto_manage_session_status - 自动管理场次状态
+DROP FUNCTION IF EXISTS public.auto_manage_session_status();
+
 CREATE OR REPLACE FUNCTION auto_manage_session_status()
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -283,6 +291,8 @@ $$;
 GRANT EXECUTE ON FUNCTION auto_manage_session_status() TO service_role;
 
 -- 6. expire_past_tickets - 过期已结束场次的票券
+DROP FUNCTION IF EXISTS public.expire_past_tickets();
+
 CREATE OR REPLACE FUNCTION expire_past_tickets()
 RETURNS INTEGER
 LANGUAGE plpgsql
@@ -307,6 +317,8 @@ $$;
 GRANT EXECUTE ON FUNCTION expire_past_tickets() TO service_role;
 
 -- 7. create_lcoin_transaction - 创建兰克币交易记录
+DROP FUNCTION IF EXISTS public.create_lcoin_transaction(uuid,text,numeric,uuid,text,text,text);
+
 CREATE OR REPLACE FUNCTION public.create_lcoin_transaction(
   p_user_id UUID,
   p_transaction_type TEXT,
@@ -352,6 +364,8 @@ GRANT EXECUTE ON FUNCTION public.create_lcoin_transaction(UUID, TEXT, NUMERIC, U
 GRANT EXECUTE ON FUNCTION public.create_lcoin_transaction(UUID, TEXT, NUMERIC, UUID, TEXT, TEXT, TEXT) TO authenticated;
 
 -- 8. deduct_lcoin - 扣除兰克币
+DROP FUNCTION IF EXISTS public.deduct_lcoin(uuid,numeric,text,uuid);
+
 CREATE OR REPLACE FUNCTION public.deduct_lcoin(
   p_user_id UUID,
   p_amount NUMERIC,
@@ -381,6 +395,8 @@ GRANT EXECUTE ON FUNCTION public.deduct_lcoin(UUID, NUMERIC, TEXT, UUID) TO serv
 GRANT EXECUTE ON FUNCTION public.deduct_lcoin(UUID, NUMERIC, TEXT, UUID) TO authenticated;
 
 -- 9. get_user_lcoin_balance - 获取用户兰克币余额
+DROP FUNCTION IF EXISTS public.get_user_lcoin_balance(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_user_lcoin_balance(p_user_id UUID)
 RETURNS NUMERIC
 LANGUAGE plpgsql
@@ -399,6 +415,8 @@ GRANT EXECUTE ON FUNCTION public.get_user_lcoin_balance(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_user_lcoin_balance(UUID) TO authenticated;
 
 -- 10. unlock_seat - 释放锁定的座位
+DROP FUNCTION IF EXISTS public.unlock_seat(uuid);
+
 CREATE OR REPLACE FUNCTION public.unlock_seat(p_seat_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
@@ -414,6 +432,8 @@ GRANT EXECUTE ON FUNCTION public.unlock_seat(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.unlock_seat(UUID) TO authenticated;
 
 -- 11. get_seat_map - 获取座位图
+DROP FUNCTION IF EXISTS public.get_seat_map(uuid);
+
 CREATE OR REPLACE FUNCTION public.get_seat_map(p_session_id UUID)
 RETURNS TABLE (
   id UUID,
@@ -451,6 +471,8 @@ GRANT EXECUTE ON FUNCTION public.get_seat_map(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.get_seat_map(UUID) TO authenticated;
 
 -- 12. lock_seat - 锁定座位
+DROP FUNCTION IF EXISTS public.lock_seat(uuid,uuid,timestamptz);
+
 CREATE OR REPLACE FUNCTION public.lock_seat(
   p_seat_id UUID,
   p_user_id UUID DEFAULT NULL,
