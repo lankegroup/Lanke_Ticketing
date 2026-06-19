@@ -356,13 +356,13 @@ export function renderTicketToCanvas(p: TicketParams): void {
   ctx.fillText('https://lankegroup-booking.bolt.host/', W / 2, fBase + 190 * D);
 
   // Copyright line — Chinese
-  ctx.fillStyle = '#b0aaa4';
-  ctx.font = `${18 * D}px sans-serif`;
-  ctx.fillText('© 兰克集团数智一体化票务运营平台', W / 2, fBase + 218 * D);
+  ctx.fillStyle = '#78716c';
+  ctx.font = `${24 * D}px sans-serif`;
+  ctx.fillText('版权所有 © 2026 兰克集团. 保留所有权利。', W / 2, fBase + 218 * D);
   // Copyright line — English
-  ctx.fillStyle = '#c4bfba';
-  ctx.font = `${16 * D}px sans-serif`;
-  ctx.fillText('Lanke Group Digital Ticketing Platform', W / 2, fBase + 240 * D);
+  ctx.fillStyle = '#a8a29e';
+  ctx.font = `${22 * D}px sans-serif`;
+  ctx.fillText('Copyright © 2026 Lanke Group. All rights reserved.', W / 2, fBase + 248 * D);
 
   ctx.textAlign = 'left';
 }
