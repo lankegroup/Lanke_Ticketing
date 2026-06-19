@@ -272,7 +272,7 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
     const selectedSeat = seats.find(s => s.id === selectedSeatId);
     const isForce = pendingForce || (selectedSeat?.is_blocked ?? false);
 
-    const bookResult = await callEdgeFunction('proxy-book-ticket', {
+    const bookResult = await supabase.rpc('admin_book_ticket', {
       p_session_id: selectedSession.id,
       p_seat_id: selectedSeatId ?? null,
       p_name: user.display_name || user.id.slice(0, 8),
@@ -280,7 +280,9 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       p_user_id: user.id,
       p_force: isForce,
       p_order_source: 'admin',
+      p_is_supplementary: false,
       p_ticket_type: ticketType,
+      p_note_content: null,
     });
 
     const rpcResult = bookResult.data as any;

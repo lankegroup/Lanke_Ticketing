@@ -311,6 +311,9 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
         <button onClick={() => setTab('transactions')} className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${tab === 'transactions' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
           <History size={16} /> {isEn ? 'Transactions' : '交易流水'}
         </button>
+        <button onClick={() => setTab('exchange')} className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${tab === 'exchange' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
+          <Settings size={16} /> {isEn ? 'Exchange Rate' : '兑现率管理'}
+        </button>
         <button onClick={() => setTab('config')} className={`flex-1 py-3 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${tab === 'config' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'}`}>
           <Settings size={16} /> {isEn ? 'Settings' : '配置管理'}
         </button>
@@ -439,6 +442,59 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {tab === 'exchange' && (
+        <div className="p-4 space-y-4">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+            <h4 className="font-semibold text-amber-800 mb-3">{isEn ? 'L-Coin Exchange Rate' : '兰克币消费兑现率'}</h4>
+            <p className="text-xs text-amber-600 mb-3">{isEn ? '1 L-Coin = X RMB, used for payment conversion when consuming' : '1 兰克币 = X 人民币，用于消费时的折算计算'}</p>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold text-amber-600">1</span>
+              <span className="text-sm text-gray-600">{isEn ? 'L-Coin =' : '兰克币 ='}</span>
+              <div className="flex-1 relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">¥</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={exchangeRate}
+                  onChange={e => setExchangeRate(e.target.value)}
+                  className="w-full border border-amber-200 rounded-xl pl-7 pr-3 py-2.5 text-lg font-bold text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  placeholder="1.00"
+                />
+              </div>
+              <span className="text-sm text-gray-600">{isEn ? 'RMB' : '人民币'}</span>
+            </div>
+            <p className="text-[10px] text-amber-500 mt-2">{isEn ? 'Tip: Set to 1.00 for 1:1 exchange' : '提示：设置为 1.00 即为 1:1 兑换'}</p>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <h4 className="font-semibold text-blue-800 mb-3">{isEn ? 'L-Coin Purchase Rate' : '兰克币购买兑现率'}</h4>
+            <p className="text-xs text-blue-600 mb-3">{isEn ? '1 RMB = X L-Coin, retail rate for users to purchase L-Coin' : '1 人民币 = X 兰克币，用户购买兰克币的零售比例'}</p>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-600">{isEn ? '¥1 RMB =' : '¥1 人民币 ='}</span>
+              <div className="flex-1 relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">LC</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={purchaseExchangeRate}
+                  onChange={e => setPurchaseExchangeRate(e.target.value)}
+                  className="w-full border border-blue-200 rounded-xl pl-7 pr-3 py-2.5 text-lg font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  placeholder="1.00"
+                />
+              </div>
+              <span className="text-sm text-gray-600">{isEn ? 'L-Coin' : '兰克币'}</span>
+            </div>
+            <p className="text-[10px] text-blue-500 mt-2">{isEn ? 'Tip: Set to 1.00 for 1:1 purchase' : '提示：设置为 1.00 即为 1:1 购买'}</p>
+          </div>
+
+          <button onClick={saveConfig} disabled={savingConfig} className="w-full bg-amber-500 hover:bg-amber-400 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+            <Save size={16} /> {savingConfig ? (isEn ? 'Saving...' : '保存中...') : (isEn ? 'Save Settings' : '保存配置')}
+          </button>
         </div>
       )}
 
