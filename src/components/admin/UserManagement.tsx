@@ -4,7 +4,7 @@ import { supabase, callEdgeFunction, UserProfile, Registration, SeatMapRow, Sess
 import { useAuth } from '../../contexts/AuthContext';
 import { Plus, Trash2, User, Users, Pencil, TicketCheck, PackageOpen, X, Ticket, RefreshCw, Printer, AlertTriangle, Coins } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
-
+import { renderTicketToCanvas, downloadTicket } from '../../lib/ticketGenerator';
 import ConfirmDialog from '../ConfirmDialog';
 import Toast from '../Toast';
 import ProxyBookingModal from './ProxyBookingModal';
@@ -550,9 +550,49 @@ function UserOrdersPage({
   }
 
   async function executePrint(order: Registration) {
-    // 票面生成功能已禁用
-    setPrintingOrder(null);
-    return;
+    setPrintingOrder(order);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    
+    try {
+      const canvas = printCanvasRef.current;
+      if (!canvas) {
+        return;
+      }
+      const qrEl = printQrRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
+      
+      const reprintCount = (order as any).reprint_count ?? 0;
+      const newReprintCount = reprintCount + 1;
+      setOrders(prev => prev.map(o => o.id === order.id ? { ...o, reprint_count: newReprintCount } as any : o));
+      
+      supabase.rpc('admin_increment_reprint_count', { p_registration_id: order.id }).catch(() => {});
+      
+      const isReprint = newReprintCount > 1;
+      const s = order.sessions as any;
+      renderTicketToCanvas({
+        canvas, qrEl,
+        ticketCode: order.ticket_code,
+        sessionName: s?.name ?? '—',
+        sessionDate: s?.session_date ?? '—',
+        startTime: s?.start_time ?? '00:00',
+        endTime: s?.end_time ?? '00:00',
+        verificationStart: s?.verification_start,
+        verificationEnd: s?.verification_end,
+        name: order.name,
+        seatName: (order as any).seats?.seat_name,
+        operatorName: profile?.username ?? '系统',
+        orderTime: new Date(order.created_at).toLocaleString('zh-CN', { hour12: false }),
+        isSupplementary: order.is_supplementary,
+        isReprint,
+        orderStatus: order.status,
+        paymentMethod: (order as any).payment_method as 'rmb' | 'lcoin' | 'mixed' || 'rmb',
+        purchaseChannel: 'offline',
+      });
+      downloadTicket(canvas, order.ticket_code);
+    } catch (err) {
+      console.error('Print error:', err);
+    } finally {
+      setPrintingOrder(null);
+    }
   }
 
   function handleReprintConfirm() {

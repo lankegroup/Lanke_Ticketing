@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, formatSeatName, SeatMapRow, Session, TicketType } from '../../lib/supabase';
-
+import { renderTicketToCanvas, downloadTicket, formatOrderTime } from '../../lib/ticketGenerator';
 import { useAuth } from '../../contexts/AuthContext';
 import { enterKioskMode, getKioskPassword, KIOSK_PASSWORD_KEY } from '../AppRouter';
 import {
@@ -765,8 +765,43 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
   }
 
   async function generateAndDownload(ticketCode: string, seatName?: string, supplementary = false, registrationId?: string, printResult?: PrintConfirmResult) {
-    // 票面生成功能已禁用
-    return;
+    const canvas = canvasRef.current;
+    if (!canvas || !selectedSession) return;
+
+    const qrEl = qrContainerRef.current?.querySelector('canvas') as HTMLCanvasElement | null;
+
+    let isReprint = false;
+    if (registrationId) {
+      const { data: printCount } = await supabase.rpc('admin_increment_print_count', { p_registration_id: registrationId });
+      isReprint = typeof printCount === 'number' && printCount > 1;
+    }
+
+    const s = selectedSession;
+    renderTicketToCanvas({
+      canvas,
+      qrEl,
+      ticketCode,
+      sessionName: s.name,
+      sessionDate: s.session_date,
+      startTime: s.start_time,
+      endTime: s.end_time,
+      verificationStart: s.verification_start,
+      verificationEnd: s.verification_end,
+      name: name.trim(),
+      seatName,
+      operatorName: '001',
+      orderTime: formatOrderTime(),
+      isSupplementary: supplementary,
+      isReprint,
+      ticketPrice: s.ticket_price,
+      serviceFee: printResult?.serviceFee,
+      paidAt: printResult?.paidAt,
+      printedAt: printResult?.printedAt,
+      paymentMethod: paymentMethod,
+      rmbAmount: parseFloat(rmbAmount || '0'),
+      purchaseChannel: 'offline',
+    });
+    downloadTicket(canvas, ticketCode);
   }
 
   async function handlePrintConfirm(result: PrintConfirmResult) {
