@@ -103,8 +103,20 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
   }, [lockExpiresAt]);
 
   async function fetchSeats(sessionId: string) {
-    const { data } = await supabase.rpc('get_seat_map', { p_session_id: sessionId });
-    setSeats((data as SeatMapRow[]) ?? []);
+    try {
+      const { data, error } = await supabase.rpc('get_seat_map', { p_session_id: sessionId });
+      if (error) {
+        console.error('Failed to fetch seats:', error);
+        setError('座位图加载失败，请刷新重试');
+        setTimeout(() => setError(''), 3000);
+      }
+      setSeats((data as SeatMapRow[]) ?? []);
+    } catch (err) {
+      console.error('Fetch seats error:', err);
+      setError('座位图异常，请刷新重试');
+      setTimeout(() => setError(''), 3000);
+      setSeats([]);
+    }
   }
 
   async function releaseLock() {
@@ -137,10 +149,13 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
   async function handleSeatClick(seat: SeatMapRow) {
     if (seat.is_booked) return;
 
-    // Blocked seat: force-booking flow (no lock needed)
     if (seat.is_blocked) {
       if (lockedSeatRef.current) {
-        await supabase.rpc('unlock_seat', { p_seat_id: lockedSeatRef.current });
+        try {
+          await supabase.rpc('unlock_seat', { p_seat_id: lockedSeatRef.current });
+        } catch (err) {
+          console.error('Unlock seat error:', err);
+        }
         lockedSeatRef.current = null;
         setLockExpiresAt('');
       }
@@ -150,57 +165,69 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       return;
     }
 
-    // Deselect currently locked seat
     if (seat.id === selectedSeatId && lockedSeatRef.current) {
-      await supabase.rpc('unlock_seat', { p_seat_id: seat.id });
+      try {
+        await supabase.rpc('unlock_seat', { p_seat_id: seat.id });
+      } catch (err) {
+        console.error('Unlock seat error:', err);
+      }
       lockedSeatRef.current = null;
       setSelectedSeatId(null);
       setLockExpiresAt('');
       setShowForceWarning(false);
       setPendingForce(false);
       if (sessionIdRef.current) {
-        const { data: fresh } = await supabase.rpc('get_seat_map', { p_session_id: sessionIdRef.current });
-        setSeats((fresh as SeatMapRow[]) ?? []);
+        await fetchSeats(sessionIdRef.current);
       }
       return;
     }
 
-    // Refresh seat map before attempting lock
     if (sessionIdRef.current) {
-      const { data: fresh } = await supabase.rpc('get_seat_map', { p_session_id: sessionIdRef.current });
-      setSeats((fresh as SeatMapRow[]) ?? []);
+      await fetchSeats(sessionIdRef.current);
     }
 
-    // Release previous lock if any
     if (lockedSeatRef.current) {
-      await supabase.rpc('unlock_seat', { p_seat_id: lockedSeatRef.current });
+      try {
+        await supabase.rpc('unlock_seat', { p_seat_id: lockedSeatRef.current });
+      } catch (err) {
+        console.error('Unlock seat error:', err);
+      }
       lockedSeatRef.current = null;
     }
 
     setShowForceWarning(false);
     setPendingForce(false);
     setLocking(true);
-    const { data, error: lockErr } = await supabase.rpc('lock_seat', { p_seat_id: seat.id });
-    setLocking(false);
+    
+    try {
+      const { data, error: lockErr } = await supabase.rpc('lock_seat', { p_seat_id: seat.id });
 
-    if (lockErr || !data?.success) {
-      const reason = data?.reason;
-      setError(reason === 'locked_by_other' ? '该座位正被他人选择，请稍后重试' : '座位锁定失败，请重试');
+      if (lockErr || !data?.success) {
+        const reason = data?.reason;
+        setError(reason === 'locked_by_other' ? '该座位正被他人选择，请稍后重试' : '座位锁定失败，请重试');
+        setTimeout(() => setError(''), 3000);
+        if (sessionIdRef.current) {
+          await fetchSeats(sessionIdRef.current);
+        }
+        return;
+      }
+
+      lockedSeatRef.current = seat.id;
+      setSelectedSeatId(seat.id);
+      setLockExpiresAt(data.expires_at);
+      setError('');
+      if (sessionIdRef.current) {
+        await fetchSeats(sessionIdRef.current);
+      }
+    } catch (err) {
+      console.error('Lock seat error:', err);
+      setError('座位锁定异常，请重试');
       setTimeout(() => setError(''), 3000);
       if (sessionIdRef.current) {
-        const { data: fresh } = await supabase.rpc('get_seat_map', { p_session_id: sessionIdRef.current });
-        setSeats((fresh as SeatMapRow[]) ?? []);
+        await fetchSeats(sessionIdRef.current);
       }
-      return;
-    }
-
-    lockedSeatRef.current = seat.id;
-    setSelectedSeatId(seat.id);
-    setLockExpiresAt(data.expires_at);
-    setError('');
-    if (sessionIdRef.current) {
-      const { data: fresh } = await supabase.rpc('get_seat_map', { p_session_id: sessionIdRef.current });
-      setSeats((fresh as SeatMapRow[]) ?? []);
+    } finally {
+      setLocking(false);
     }
   }
 

@@ -1220,9 +1220,19 @@ function SeatSelectionView({
   const MAX_SEATS = 3;
 
   async function fetchSeats() {
-    const { data } = await supabase.rpc('get_seat_map', { p_session_id: session.id });
-    setSeats((data as SeatMapRow[]) ?? []);
-    setLoading(false);
+    try {
+      const { data, error } = await supabase.rpc('get_seat_map', { p_session_id: session.id });
+      if (error) {
+        console.error('Failed to fetch seats:', error);
+        showToast(isEn ? 'Failed to load seat map' : '座位图加载失败', 'error');
+      }
+      setSeats((data as SeatMapRow[]) ?? []);
+    } catch (err) {
+      console.error('Fetch seats error:', err);
+      showToast(isEn ? 'Seat map error, please refresh' : '座位图异常，请刷新页面', 'error');
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -1249,46 +1259,58 @@ function SeatSelectionView({
   }, [selectedSeats]);
 
   async function handleSeatClick(seat: SeatMapRow) {
-    if (!userId) return;
+    if (!userId) {
+      showToast(isEn ? 'Please login first' : '请先登录', 'warning');
+      return;
+    }
 
-    // Deselect if clicking an already-selected seat
     const existingIdx = selectedSeats.findIndex(s => s.seatId === seat.id);
     if (existingIdx !== -1) {
-      await supabase.rpc('unlock_seat', { p_seat_id: seat.id });
+      try {
+        await supabase.rpc('unlock_seat', { p_seat_id: seat.id });
+      } catch (err) {
+        console.error('Unlock seat error:', err);
+      }
       onSeatsChanged(selectedSeats.filter(s => s.seatId !== seat.id));
       fetchSeats();
       return;
     }
 
-    // Refresh seat map to show latest state before attempting lock
     fetchSeats();
 
-    // Check max limit
     if (selectedSeats.length >= MAX_SEATS) {
       showToast(isEn ? `Maximum ${MAX_SEATS} seats allowed` : `最多选择 ${MAX_SEATS} 个座位`, 'warning');
       return;
     }
 
     setLocking(true);
-    const { data, error } = await supabase.rpc('lock_seat', { p_seat_id: seat.id });
-    setLocking(false);
+    try {
+      const { data, error } = await supabase.rpc('lock_seat', { p_seat_id: seat.id });
 
-    if (error || !data?.success) {
-      const reason = data?.reason;
-      if (reason === 'already_booked') showToast(isEn ? 'This seat is already booked' : '该座位已被预订', 'error');
-      else if (reason === 'locked_by_other') showToast(isEn ? 'This seat is being held by someone else' : '该座位正被他人选择，请稍后重试', 'warning');
-      else showToast(isEn ? 'Failed to lock seat, please try again' : '座位锁定失败，请重试', 'error');
+      if (error || !data?.success) {
+        const reason = data?.reason;
+        if (reason === 'already_booked') showToast(isEn ? 'This seat is already booked' : '该座位已被预订', 'error');
+        else if (reason === 'locked_by_other') showToast(isEn ? 'This seat is just taken by someone else' : '该座位刚刚被别人抢走了', 'warning');
+        else if (reason === 'not_authenticated') showToast(isEn ? 'Please login again' : '请重新登录', 'error');
+        else showToast(isEn ? 'Failed to lock seat, please try again' : '座位锁定失败，请重试', 'error');
+        fetchSeats();
+        return;
+      }
+
+      onSeatsChanged([...selectedSeats, {
+        seatId: seat.id,
+        seatName: seat.seat_name,
+        expiresAt: data.expires_at,
+        ticketType: 'adult' as TicketType,
+      }]);
       fetchSeats();
-      return;
+    } catch (err) {
+      console.error('Lock seat error:', err);
+      showToast(isEn ? 'Network error, please try again' : '网络异常，请重试', 'error');
+      fetchSeats();
+    } finally {
+      setLocking(false);
     }
-
-    onSeatsChanged([...selectedSeats, {
-      seatId: seat.id,
-      seatName: seat.seat_name,
-      expiresAt: data.expires_at,
-      ticketType: 'adult' as TicketType,
-    }]);
-    fetchSeats();
   }
 
   // Derive actual dimensions from loaded seats
