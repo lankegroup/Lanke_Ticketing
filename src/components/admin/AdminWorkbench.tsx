@@ -735,8 +735,12 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     lcoinPayAmount = Math.round(lcoinPayAmount * 100) / 100;
 
     if (lcoinPayAmount > 0 && matchedUserId) {
-      if (customerBalance < lcoinPayAmount) {
-        setError(`余额不足！当前余额 ${customerBalance} L-Coin，需支付 ${lcoinPayAmount} L-Coin`);
+      const { data: realTimeBalData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: matchedUserId });
+      const realTimeBalance = typeof realTimeBalData === 'number' ? realTimeBalData : 0;
+
+      if (realTimeBalance < lcoinPayAmount) {
+        setError(`余额不足！当前余额 ${realTimeBalance} L-Coin，需支付 ${lcoinPayAmount} L-Coin`);
+        setCustomerBalance(realTimeBalance);
         setSubmitting(false);
         return;
       }
@@ -753,6 +757,8 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
 
       const resultData = deductResult.data as any;
       if (!resultData?.success) {
+        const { data: afterErrorBal } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: matchedUserId });
+        setCustomerBalance(typeof afterErrorBal === 'number' ? afterErrorBal : 0);
         setError(resultData?.error || '扣款失败，请重试');
         setSubmitting(false);
         return;

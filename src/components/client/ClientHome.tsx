@@ -672,6 +672,16 @@ function BookingFormView({
       }
     }
 
+    if (effectiveUserId && effectiveUserId !== userId) {
+      const { data: targetBalData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: effectiveUserId });
+      const targetBalance = typeof targetBalData === 'number' ? targetBalData : 0;
+      if (targetBalance < totalPrice) {
+        showToast(isEn ? `Insufficient balance in target account. Required: ${totalPrice} L-Coin, Available: ${targetBalance} L-Coin` : `目标账户余额不足，需 ${totalPrice} L-Coin，可用 ${targetBalance} L-Coin`, 'error');
+        setSubmitting(false);
+        return;
+      }
+    }
+
     let successCount = 0;
     const errors: string[] = [];
 
@@ -752,6 +762,16 @@ function BookingFormView({
       if (phoneMatch && phoneMatch.id !== userId) {
         effectiveUserId = phoneMatch.id;
         buyerUserId = userId;
+      }
+    }
+
+    if (effectiveUserId && effectiveUserId !== userId) {
+      const { data: targetBalData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: effectiveUserId });
+      const targetBalance = typeof targetBalData === 'number' ? targetBalData : 0;
+      if (targetBalance < totalPrice) {
+        showToast(isEn ? `Insufficient balance in target account. Required: ${totalPrice} L-Coin, Available: ${targetBalance} L-Coin` : `目标账户余额不足，需 ${totalPrice} L-Coin，可用 ${targetBalance} L-Coin`, 'error');
+        setSubmitting(false);
+        return;
       }
     }
 
