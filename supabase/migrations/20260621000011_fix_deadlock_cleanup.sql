@@ -62,6 +62,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.cleanup_expired_seat_locks() TO service_role;
 
 -- 5. 修改 lock_seat 函数，确保TTL为5分钟（300秒），防止永久锁定
+-- 添加 SET ROLE service_role 绕过 RLS，确保锁定操作成功
 CREATE OR REPLACE FUNCTION public.lock_seat(
   p_seat_id UUID,
   p_user_id UUID DEFAULT NULL
@@ -73,6 +74,9 @@ DECLARE
   v_user_id UUID;
   v_expires TIMESTAMPTZ;
 BEGIN
+  -- 绕过 RLS 策略
+  SET ROLE service_role;
+
   IF p_user_id IS NOT NULL THEN
     v_user_id := p_user_id;
   ELSE
@@ -80,32 +84,41 @@ BEGIN
   END IF;
 
   IF v_user_id IS NULL THEN
+    RESET ROLE;
     RETURN jsonb_build_object('success', false, 'reason', 'not_authenticated');
   END IF;
 
+  -- 检查座位是否已被预订
   IF EXISTS (
     SELECT 1 FROM registrations
     WHERE seat_id = p_seat_id
       AND status NOT IN ('cancelled', 'expired')
+      AND deleted_at IS NULL
   ) THEN
+    RESET ROLE;
     RETURN jsonb_build_object('success', false, 'reason', 'already_booked');
   END IF;
 
+  -- 检查是否有其他用户的有效锁
   IF EXISTS (
     SELECT 1 FROM seat_locks
     WHERE seat_id = p_seat_id
       AND expires_at > NOW()
       AND user_id != v_user_id
   ) THEN
+    RESET ROLE;
     RETURN jsonb_build_object('success', false, 'reason', 'locked_by_other');
   END IF;
 
+  -- 删除旧锁（自己的锁或其他人的过期锁）
   DELETE FROM seat_locks WHERE seat_id = p_seat_id;
 
+  -- 创建新锁，TTL 5分钟
   INSERT INTO seat_locks (seat_id, user_id, expires_at)
   VALUES (p_seat_id, v_user_id, NOW() + INTERVAL '5 minutes')
   RETURNING expires_at INTO v_expires;
 
+  RESET ROLE;
   RETURN jsonb_build_object('success', true, 'expires_at', v_expires);
 END;
 $$;
@@ -116,6 +129,7 @@ GRANT EXECUTE ON FUNCTION public.lock_seat(UUID, UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.lock_seat(UUID, UUID) TO authenticated;
 
 -- 6. 修改 book_ticket_with_seat 函数，移除严格锁检查，支持自动锁定
+-- 添加 SET ROLE service_role 绕过 RLS
 CREATE OR REPLACE FUNCTION public.book_ticket_with_seat(
   p_session_id UUID,
   p_seat_id UUID,
@@ -139,12 +153,15 @@ DECLARE
   v_seat_name TEXT;
   v_deduct_result JSONB;
 BEGIN
+  -- 绕过 RLS 策略
+  SET ROLE service_role;
+
   SELECT * INTO v_session FROM sessions WHERE id = p_session_id FOR UPDATE;
-  IF NOT FOUND THEN RETURN jsonb_build_object('success', false, 'error', 'session_not_found'); END IF;
-  IF NOT v_session.is_active THEN RETURN jsonb_build_object('success', false, 'error', 'session_inactive'); END IF;
-  IF v_session.available_stock <= 0 THEN RETURN jsonb_build_object('success', false, 'error', 'sold_out'); END IF;
-  IF NOT EXISTS (SELECT 1 FROM seats WHERE id = p_seat_id AND session_id = p_session_id) THEN RETURN jsonb_build_object('success', false, 'error', 'invalid_seat'); END IF;
-  IF EXISTS (SELECT 1 FROM registrations WHERE seat_id = p_seat_id AND status NOT IN ('cancelled', 'expired') AND deleted_at IS NULL) THEN RETURN jsonb_build_object('success', false, 'error', 'seat_taken'); END IF;
+  IF NOT FOUND THEN RESET ROLE; RETURN jsonb_build_object('success', false, 'error', 'session_not_found'); END IF;
+  IF NOT v_session.is_active THEN RESET ROLE; RETURN jsonb_build_object('success', false, 'error', 'session_inactive'); END IF;
+  IF v_session.available_stock <= 0 THEN RESET ROLE; RETURN jsonb_build_object('success', false, 'error', 'sold_out'); END IF;
+  IF NOT EXISTS (SELECT 1 FROM seats WHERE id = p_seat_id AND session_id = p_session_id) THEN RESET ROLE; RETURN jsonb_build_object('success', false, 'error', 'invalid_seat'); END IF;
+  IF EXISTS (SELECT 1 FROM registrations WHERE seat_id = p_seat_id AND status NOT IN ('cancelled', 'expired') AND deleted_at IS NULL) THEN RESET ROLE; RETURN jsonb_build_object('success', false, 'error', 'seat_taken'); END IF;
 
   SELECT seat_name INTO v_seat_name FROM seats WHERE id = p_seat_id;
 
@@ -178,6 +195,7 @@ BEGIN
     ) INTO v_deduct_result;
 
     IF (v_deduct_result->>'success')::BOOLEAN = FALSE THEN
+      RESET ROLE;
       RETURN jsonb_build_object('success', FALSE, 'error', 'insufficient_balance', 'required', v_total_amount, 'available', (v_deduct_result->>'available')::DECIMAL);
     END IF;
   END IF;
@@ -189,9 +207,11 @@ BEGIN
   RETURNING id INTO v_reg_id;
   DELETE FROM seat_locks WHERE seat_id = p_seat_id;
 
+  RESET ROLE;
   RETURN jsonb_build_object('success', true, 'registration_id', v_reg_id, 'ticket_code', v_code);
 EXCEPTION
   WHEN OTHERS THEN
+    RESET ROLE;
     RETURN jsonb_build_object('success', false, 'error', SQLERRM);
 END;
 $$;
@@ -199,7 +219,24 @@ $$;
 GRANT EXECUTE ON FUNCTION public.book_ticket_with_seat(UUID, UUID, TEXT, TEXT, UUID, TEXT, UUID, TEXT) TO service_role;
 GRANT EXECUTE ON FUNCTION public.book_ticket_with_seat(UUID, UUID, TEXT, TEXT, UUID, TEXT, UUID, TEXT) TO authenticated;
 
+-- 6.5 修复 unlock_seat 函数，添加 SET ROLE service_role 绕过 RLS
+CREATE OR REPLACE FUNCTION public.unlock_seat(p_seat_id UUID)
+RETURNS VOID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
+AS $$
+BEGIN
+  -- 绕过 RLS 策略
+  SET ROLE service_role;
+  DELETE FROM seat_locks WHERE seat_id = p_seat_id;
+  RESET ROLE;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.unlock_seat(UUID) TO service_role;
+GRANT EXECUTE ON FUNCTION public.unlock_seat(UUID) TO authenticated;
+
 -- 7. 修改 get_seat_map 函数，自动过滤过期锁
+-- 添加 SET ROLE service_role 绕过 RLS
 CREATE OR REPLACE FUNCTION public.get_seat_map(p_session_id UUID)
 RETURNS TABLE (
   id UUID,
@@ -214,8 +251,17 @@ RETURNS TABLE (
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
 DECLARE
-  v_user_id UUID := auth.uid();
+  v_user_id UUID;
 BEGIN
+  -- 绕过 RLS 策略
+  SET ROLE service_role;
+
+  BEGIN
+    v_user_id := auth.uid();
+  EXCEPTION WHEN OTHERS THEN
+    v_user_id := NULL;
+  END;
+
   RETURN QUERY
   SELECT
     s.id,
