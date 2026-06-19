@@ -641,7 +641,8 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     }
 
     setLocking(true);
-    const { data, error: lockErr } = await supabase.rpc('lock_seat', { p_seat_id: seat.id });
+    const lockUserId = matchedUserId ?? (await supabase.auth.getUser()).data.user?.id ?? '';
+    const { data, error: lockErr } = await supabase.rpc('lock_seat_for_user', { p_seat_id: seat.id, p_user_id: lockUserId });
     setLocking(false);
 
     if (lockErr || !data?.success) {
