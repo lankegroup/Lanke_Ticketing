@@ -89,7 +89,7 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
     const balances = new Map<string, number>();
     for (const user of userList) {
       try {
-        const { data } = await supabase.rpc('get_user_balance', { p_user_id: user.id });
+        const { data } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: user.id });
         let bal = 0;
         if (data !== null && data !== undefined) {
           if (typeof data === 'object') {

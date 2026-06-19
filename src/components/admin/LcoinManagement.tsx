@@ -41,6 +41,7 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
   const [rechargeSettingsId, setRechargeSettingsId] = useState<string | null>(null);
   const [uploadingBanner, setUploadingBanner] = useState(false);
   const [exchangeRate, setExchangeRate] = useState('1.00');
+  const [purchaseExchangeRate, setPurchaseExchangeRate] = useState('1.00');
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'warning'; visible: boolean }>({
     message: '',
@@ -128,6 +129,10 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
       if (rateConfig) {
         setExchangeRate(rateConfig.value || '1.00');
       }
+      const purchaseRateConfig = configData.find(c => c.key === 'purchase_exchange_rate');
+      if (purchaseRateConfig) {
+        setPurchaseExchangeRate(purchaseRateConfig.value || '1.00');
+      }
     }
     const { data: settingsData } = await supabase.from('recharge_settings').select('*').single();
     if (settingsData) {
@@ -152,6 +157,13 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
         await supabase.from('lcoin_config').update({ value: exchangeRate, updated_at: new Date().toISOString() }).eq('key', 'exchange_rate');
       } else {
         await supabase.from('lcoin_config').insert({ key: 'exchange_rate', value: exchangeRate });
+      }
+
+      const { data: existingPurchaseRate } = await supabase.from('lcoin_config').select('id').eq('key', 'purchase_exchange_rate');
+      if (existingPurchaseRate && existingPurchaseRate.length > 0) {
+        await supabase.from('lcoin_config').update({ value: purchaseExchangeRate, updated_at: new Date().toISOString() }).eq('key', 'purchase_exchange_rate');
+      } else {
+        await supabase.from('lcoin_config').insert({ key: 'purchase_exchange_rate', value: purchaseExchangeRate });
       }
 
       if (rechargeSettingsId) {
@@ -516,6 +528,28 @@ export default function LcoinManagement({ onBack }: { onBack: () => void }) {
                   <span className="text-sm text-gray-600">{isEn ? 'RMB' : '人民币'}</span>
                 </div>
                 <p className="text-[10px] text-amber-500 mt-2">{isEn ? 'Tip: Set to 1.00 for 1:1 exchange' : '提示：设置为 1.00 即为 1:1 兑换'}</p>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-4">
+                <h4 className="font-semibold text-blue-800 mb-3">{isEn ? 'L-Coin Purchase Rate' : '兰克币购买兑现率'}</h4>
+                <p className="text-xs text-blue-600 mb-3">{isEn ? '1 RMB = X L-Coin, retail rate for users to purchase L-Coin' : '1 人民币 = X 兰克币，用户购买兰克币的零售比例'}</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600">{isEn ? '¥1 RMB =' : '¥1 人民币 ='}</span>
+                  <div className="flex-1 relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">LC</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={purchaseExchangeRate}
+                      onChange={e => setPurchaseExchangeRate(e.target.value)}
+                      className="w-full border border-blue-200 rounded-xl pl-7 pr-3 py-2.5 text-lg font-bold text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      placeholder="1.00"
+                    />
+                  </div>
+                  <span className="text-sm text-gray-600">{isEn ? 'L-Coin' : '兰克币'}</span>
+                </div>
+                <p className="text-[10px] text-blue-500 mt-2">{isEn ? 'Tip: Set to 1.00 for 1:1 purchase' : '提示：设置为 1.00 即为 1:1 购买'}</p>
               </div>
             </div>
 

@@ -541,9 +541,6 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
       });
 
     return () => {
-      lockedSeatRefs.current.forEach(seatId => {
-        supabase.rpc('unlock_seat', { p_seat_id: seatId });
-      });
       if (seatPollRef.current) clearInterval(seatPollRef.current);
     };
   }, []);
@@ -592,7 +589,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
 
   async function handleSeatClick(seat: SeatMapRow) {
     if (!selectedSession || seat.is_booked || seat.is_blocked) return;
-    const maxTickets = Math.min(3, selectedSession.available_stock ?? selectedSession.capacity ?? 3);
+    const maxTickets = Math.min(5, selectedSession.available_stock ?? selectedSession.capacity ?? 5);
 
     // If seat is already selected, deselect it
     if (selectedSeatIds.includes(seat.id)) {
@@ -1214,7 +1211,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
                     <span className="text-gray-600">
                       {seat?.seat_name} · {type === 'adult' ? '成人票' : type === 'child' ? '儿童票' : type === 'concession' ? '优待票' : 'VIP票'}
                     </span>
-                    <span className="font-medium text-gray-800">{price} LC</span>
+                    <span className="font-medium text-gray-800">{(price / exchangeRate).toFixed(2)} LC</span>
                   </div>
                 );
               }) : entryTicketTypes.map((type, idx) => {
@@ -1224,7 +1221,7 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
                     <span className="text-gray-600">
                       {idx + 1} · {type === 'adult' ? '成人票' : type === 'child' ? '儿童票' : type === 'concession' ? '优待票' : 'VIP票'}
                     </span>
-                    <span className="font-medium text-gray-800">{price} LC</span>
+                    <span className="font-medium text-gray-800">{(price / exchangeRate).toFixed(2)} LC</span>
                   </div>
                 );
               })}
@@ -1232,12 +1229,12 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
             {selectedSession.default_service_fee > 0 && (
               <div className="flex justify-between text-xs pt-1 border-t border-gray-200">
                 <span className="text-gray-600">手续费</span>
-                <span className="font-medium text-gray-800">{selectedSession.default_service_fee} LC</span>
+                <span className="font-medium text-gray-800">{(selectedSession.default_service_fee / exchangeRate).toFixed(2)} LC</span>
               </div>
             )}
             <div className="flex justify-between pt-1 border-t border-gray-200">
               <span className="text-sm font-semibold text-gray-700">应付总额</span>
-              <span className="text-lg font-bold text-amber-500">{totalPrice} LC</span>
+              <span className="text-lg font-bold text-amber-500">{(totalPrice / exchangeRate).toFixed(2)} LC</span>
             </div>
           </div>
 
