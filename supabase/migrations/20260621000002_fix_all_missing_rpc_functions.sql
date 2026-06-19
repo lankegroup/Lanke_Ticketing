@@ -336,24 +336,27 @@ AS $$
 DECLARE
   v_balance NUMERIC;
   v_new_balance NUMERIC;
+  v_direction TEXT;
   v_tx_id UUID;
 BEGIN
   SELECT COALESCE(balance, 0) INTO v_balance FROM lcoin_accounts WHERE user_id = p_user_id;
   IF v_balance IS NULL THEN v_balance := 0; END IF;
 
-  IF p_transaction_type = 'deduct' OR p_transaction_type = 'consume' THEN
+  IF p_transaction_type IN ('deduct', 'consume', 'purchase', 'fee', 'reschedule', 'adjust_subtract') THEN
+    v_direction := 'out';
     v_new_balance := v_balance - p_amount;
     IF v_new_balance < 0 THEN
       RETURN jsonb_build_object('success', false, 'error', 'insufficient_balance', 'balance', v_balance);
     END IF;
     UPDATE lcoin_accounts SET balance = v_new_balance WHERE user_id = p_user_id;
   ELSE
+    v_direction := 'in';
     v_new_balance := v_balance + p_amount;
     UPDATE lcoin_accounts SET balance = v_new_balance WHERE user_id = p_user_id;
   END IF;
 
-  INSERT INTO lcoin_transactions (user_id, transaction_type, amount, balance_before, balance_after, session_id, operator_type, description, payment_method)
-  VALUES (p_user_id, p_transaction_type, p_amount, v_balance, v_new_balance, p_session_id, p_operator_type, p_description, p_payment_method)
+  INSERT INTO lcoin_transactions (user_id, transaction_type, direction, amount, balance_before, balance_after, session_id, operator_type, description, payment_method)
+  VALUES (p_user_id, p_transaction_type, v_direction, p_amount, v_balance, v_new_balance, p_session_id, p_operator_type, p_description, p_payment_method)
   RETURNING id INTO v_tx_id;
 
   RETURN jsonb_build_object('success', true, 'transaction_id', v_tx_id, 'new_balance', v_new_balance);

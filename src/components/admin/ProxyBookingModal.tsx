@@ -252,23 +252,6 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       return;
     }
 
-    const deductResult = await supabase.rpc('create_lcoin_transaction', {
-      p_user_id: user.id,
-      p_transaction_type: 'purchase',
-      p_amount: ticketPrice,
-      p_session_id: selectedSession.id,
-      p_operator_type: 'admin',
-      p_description: `代客预约：${selectedSession.name}`,
-      p_payment_method: 'lcoin',
-    });
-
-    const deductData = deductResult.data as any;
-    if (!deductData?.success) {
-      setError(deductData?.error || '扣款失败，请重试');
-      setSubmitting(false);
-      return;
-    }
-
     const selectedSeat = seats.find(s => s.id === selectedSeatId);
     const isForce = pendingForce || (selectedSeat?.is_blocked ?? false);
 
@@ -288,15 +271,6 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
     const rpcResult = bookResult.data as any;
 
     if (bookResult.error || !rpcResult?.success) {
-      await supabase.rpc('create_lcoin_transaction', {
-        p_user_id: user.id,
-        p_transaction_type: 'refund',
-        p_amount: ticketPrice,
-        p_session_id: selectedSession.id,
-        p_operator_type: 'admin',
-        p_description: `退款：代客预约失败 ${selectedSession.name}`,
-        p_payment_method: 'lcoin',
-      });
       const msg = rpcResult?.error;
       if (msg === 'sold_out') setError('该场次已售罄');
       else if (msg === 'seat_taken') setError('座位已被预订，请返回重新选择');
@@ -310,6 +284,27 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       else {
         const errDetail = bookResult.error ? (typeof bookResult.error === 'object' ? JSON.stringify(bookResult.error) : String(bookResult.error)) : '';
         setError('预订失败：' + (msg || errDetail || '未知错误'));
+      }
+      setSubmitting(false);
+      return;
+    }
+
+    const deductResult = await supabase.rpc('create_lcoin_transaction', {
+      p_user_id: user.id,
+      p_transaction_type: 'purchase',
+      p_amount: ticketPrice,
+      p_session_id: selectedSession.id,
+      p_operator_type: 'admin',
+      p_description: `代客预约：${selectedSession.name}`,
+      p_payment_method: 'lcoin',
+    });
+
+    const deductData = deductResult.data as any;
+    if (!deductData?.success) {
+      if (deductData?.error === 'insufficient_balance') {
+        setError(`余额不足！当前余额 ${customerBalance} L-Coin，需支付 ${ticketPrice} L-Coin`);
+      } else {
+        setError(deductData?.error || '扣款失败，请重试');
       }
       setSubmitting(false);
       return;
