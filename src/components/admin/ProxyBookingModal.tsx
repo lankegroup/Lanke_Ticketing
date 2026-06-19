@@ -200,7 +200,7 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
     setLocking(true);
     
     try {
-      const { data, error: lockErr } = await supabase.rpc('lock_seat', { p_seat_id: seat.id });
+      const { data, error: lockErr } = await supabase.rpc('lock_seat_for_user', { p_seat_id: seat.id, p_user_id: user.id });
 
       if (lockErr || !data?.success) {
         const reason = data?.reason;
