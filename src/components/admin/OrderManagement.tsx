@@ -106,7 +106,7 @@ function RegistrationsList() {
       supabase
         .from('registrations')
         .select('*, sessions(name, session_date, start_time, end_time, verification_start, verification_end, ticket_price, default_service_fee), seats(seat_name)')
-        .is('deleted_at', null)
+        .not('status', 'in', '("cancelled","expired")')
         .order('created_at', { ascending: false }),
       supabase.from('sessions').select('*').order('session_date'),
     ]);
@@ -1535,8 +1535,7 @@ function SessionEditor({
       .from('registrations')
       .select('name, ticket_code, ticket_type, seats(seat_name)')
       .eq('session_id', id)
-      .in('status', ['active', 'used'])
-      .is('deleted_at', null);
+      .in('status', ['active', 'used']);
     setSoldOrders((regData as any[])?.map(r => ({ name: r.name, ticket_code: r.ticket_code, ticket_type: r.ticket_type as TicketType, seat_name: (r as any).seats?.seat_name ?? '-' })) ?? []);
     setBlockLoading(false);
   }
@@ -1554,7 +1553,6 @@ function SessionEditor({
         .select('id, name, phone, ticket_code')
         .eq('seat_id', seat.id)
         .not('status', 'in', '("cancelled","expired")')
-        .is('deleted_at', null)
         .maybeSingle()
         .then(({ data }) => {
           if (data) {
@@ -1846,7 +1844,6 @@ function SessionEditor({
         .select('*, sessions(name, session_date, start_time, end_time, ticket_price, default_service_fee), seats(seat_name)')
         .eq('seat_id', blockSeats.find(s => s.seat_name === seatName)?.id ?? '')
         .not('status', 'in', '("cancelled","expired")')
-        .is('deleted_at', null)
         .maybeSingle();
       if (data) {
         const seat = blockSeats.find(s => s.seat_name === seatName);

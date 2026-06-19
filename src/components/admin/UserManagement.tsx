@@ -531,7 +531,7 @@ function UserOrdersPage({
       .from('registrations')
       .select('*, sessions(name, session_date, start_time, end_time, verification_start, verification_end), seats(seat_name)')
       .eq('user_id', user.id)
-      .is('deleted_at', null)
+      .not('status', 'in', '("cancelled","expired")')
       .order('created_at', { ascending: false });
     setOrders((data as Registration[]) ?? []);
     setLoading(false);

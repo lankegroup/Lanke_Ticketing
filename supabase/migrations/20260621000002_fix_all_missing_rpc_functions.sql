@@ -431,7 +431,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.unlock_seat(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.unlock_seat(UUID) TO authenticated;
 
--- 11. get_seat_map - 获取座位图
+-- 11. get_seat_map - 获取座位图（安全版本，不依赖可能缺失的 deleted_at）
 DROP FUNCTION IF EXISTS public.get_seat_map(uuid);
 
 CREATE OR REPLACE FUNCTION public.get_seat_map(p_session_id UUID)
@@ -457,11 +457,14 @@ BEGIN
     s.col_index,
     s.seat_name,
     s.is_blocked,
-    COALESCE(r.status, 'available')::TEXT AS status
+    COALESCE(
+      (SELECT r.status::TEXT FROM registrations r
+       WHERE r.seat_id = s.id
+         AND r.status NOT IN ('cancelled', 'expired')
+       LIMIT 1),
+      'available'
+    ) AS status
   FROM seats s
-  LEFT JOIN registrations r ON r.seat_id = s.id
-    AND r.status NOT IN ('cancelled', 'expired')
-    AND r.deleted_at IS NULL
   WHERE s.session_id = p_session_id
   ORDER BY s.row_index, s.col_index;
 END;

@@ -71,7 +71,7 @@ export default function MyPage() {
       .from('registrations')
       .select('*, sessions(name, session_date, start_time, end_time), seats(seat_name)')
       .or(`user_id.eq.${user!.id},buyer_user_id.eq.${user!.id}`)
-      .is('deleted_at', null)
+      .not('status', 'in', '("cancelled","expired")')
       .order('created_at', { ascending: false });
     setTickets(data ?? []);
     setLoading(false);

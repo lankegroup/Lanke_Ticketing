@@ -45,8 +45,8 @@ export default function AdminLayout() {
 
   async function fetchUnreadCounts() {
     const [notesRes, chatRes, feedbackRes] = await Promise.all([
-      supabase.from('registrations').select('id', { count: 'exact' }).not('note_content', null).eq('is_note_read', false).is('deleted_at', null),
-      supabase.from('chat_conversations').select('id', { count: 'exact' }).gt('unread_count', 0),
+      supabase.from('registrations').select('id', { count: 'exact' }).not('note_content', null).eq('is_note_read', false).not('status', 'in', '("cancelled","expired")'),
+      supabase.from('chat_conversations').select('id', { count: 'exact' }).gt('admin_unread', 0),
       supabase.from('feedback_tickets').select('id', { count: 'exact' }).eq('status', 'pending'),
     ]);
     const notesCount = (notesRes.count as number) ?? 0;

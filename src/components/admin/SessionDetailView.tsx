@@ -33,7 +33,7 @@ export default function SessionDetailView({
       .from('registrations')
       .select('*, seats(seat_name)')
       .eq('session_id', session.id)
-      .is('deleted_at', null)
+      .not('status', 'in', '("cancelled","expired")')
       .order('created_at', { ascending: false })
       .limit(20);
     setRecentOrders((orders as Registration[]) ?? []);

@@ -123,7 +123,7 @@ function NotesSummary() {
     const { data: regData } = await supabase
       .from('registrations')
       .select('id, note_content, note_author, note_status, is_note_read, name, phone, user_id, ticket_code, created_at, sessions(name, session_date)')
-      .is('deleted_at', null)
+      .not('status', 'in', '("cancelled","expired")')
       .order('created_at', { ascending: false });
 
     const regNotes = ((regData as any[]) ?? [])
