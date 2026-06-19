@@ -206,7 +206,9 @@ export default function FrontDesk() {
     setShowForceWarning(false);
     setPendingForce(false);
     setLocking(true);
-    const { data, error: lockErr } = await supabase.rpc('lock_seat', { p_seat_id: seat.id });
+    const { data: { user } } = await supabase.auth.getUser();
+    const lockUserId = customerUser?.id ?? user?.id ?? '';
+    const { data, error: lockErr } = await supabase.rpc('lock_seat_for_user', { p_seat_id: seat.id, p_user_id: lockUserId });
     setLocking(false);
 
     if (lockErr || !data?.success) {
