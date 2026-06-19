@@ -2,7 +2,7 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, Registration, FeedbackTicket, formatSeatName, SeatMapRow, Session, getDisplayStatus } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Ticket, LogOut, LogIn, ChevronRight, Settings, MessageSquare, KeyRound, User, X, Send, Pencil, Headphones, Trash2, PackageOpen, RefreshCw, Coins, Package, History, Info } from 'lucide-react';
+import { Ticket, LogOut, LogIn, ChevronRight, Settings, MessageSquare, KeyRound, User, X, Send, Pencil, Headphones, Trash2, PackageOpen, RefreshCw, Coins, Package, History, Info, Crown } from 'lucide-react';
 import QRCodeView from './QRCodeView';
 import LoginModal from './LoginModal';
 import Toast from '../Toast';
@@ -22,12 +22,15 @@ export default function MyPage() {
   const [subView, setSubView] = useState<SubView>('main');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [balance, setBalance] = useState<string>('0');
+  const [isVip, setIsVip] = useState(false);
+  const [vipExpireAt, setVipExpireAt] = useState<string | null>(null);
 
   const isEn = i18n.language === 'en';
 
   useEffect(() => {
     if (!user) return;
     fetchBalance();
+    checkVipStatus();
 
     const ch = supabase
       .channel(`balance:user:${user.id}`)
@@ -63,6 +66,25 @@ export default function MyPage() {
     } catch (err) {
       console.error('Failed to fetch balance:', err);
       setBalance('0');
+    }
+  }
+
+  async function checkVipStatus() {
+    if (!user?.id) return;
+    try {
+      const { data } = await supabase.rpc('check_and_update_vip_status', { p_user_id: user.id });
+      if (data?.success) {
+        setIsVip(data.is_vip || false);
+      }
+      const { data: profileData } = await supabase.from('user_profiles').select('is_vip, vip_expire_at').eq('id', user.id).single();
+      if (profileData) {
+        const expireAt = profileData.vip_expire_at;
+        const isValid = expireAt && new Date(expireAt) > new Date();
+        setIsVip(profileData.is_vip && isValid);
+        setVipExpireAt(isValid ? expireAt : null);
+      }
+    } catch (err) {
+      console.error('Failed to check VIP status:', err);
     }
   }
 
@@ -177,38 +199,51 @@ export default function MyPage() {
       <LoginModal open={showLoginModal} onClose={() => setShowLoginModal(false)} />
 
       {/* User card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+      <div className={`rounded-2xl shadow-sm border p-4 ${isVip ? 'bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 border-amber-200' : 'bg-white border-gray-100'}`}>
         {user ? (
           <div className="space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-sky-100 rounded-xl flex items-center justify-center">
-                <User size={20} className="text-sky-500" />
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${isVip ? 'bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg' : 'bg-sky-100'}`}>
+                {isVip ? <Crown size={24} className="text-white" /> : <User size={20} className={isVip ? 'text-white' : 'text-sky-500'} />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`font-semibold text-gray-900 truncate ${isEn ? 'text-sm' : 'text-base'}`}>
-                  {userProfile?.display_name || user.email?.split('@')[0] || ''}
-                </p>
-                {userProfile?.phone && <p className="text-xs text-gray-400">{userProfile.phone}</p>}
+                <div className="flex items-center gap-2">
+                  <p className={`font-bold text-gray-900 truncate ${isEn ? 'text-base' : 'text-lg'}`}>
+                    {userProfile?.display_name || user.email?.split('@')[0] || ''}
+                  </p>
+                  {isVip && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gradient-to-r from-amber-400 to-orange-500 text-white text-xs font-bold rounded-full shadow-sm">
+                      <Crown size={10} /> VIP
+                    </span>
+                  )}
+                </div>
+                {userProfile?.phone && <p className="text-xs text-gray-500">{userProfile.phone}</p>}
+                {isVip && vipExpireAt && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                    <Crown size={10} />
+                    {isEn ? 'Valid until' : '有效期至'}：{new Date(vipExpireAt).toLocaleDateString()}
+                  </p>
+                )}
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex gap-2">
                 <button
                   onClick={() => setSubView('edit_profile')}
-                  className="flex-1 flex items-center justify-center gap-1.5 border border-gray-200 rounded-xl py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  className={`flex-1 flex items-center justify-center gap-1.5 border rounded-xl py-2 text-sm transition-colors ${isVip ? 'border-amber-300 text-amber-700 hover:bg-amber-50' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                 >
                   <Pencil size={14} /> {t('edit_profile')}
                 </button>
                 <button
                   onClick={() => setSubView('change_password')}
-                  className="flex-1 flex items-center justify-center gap-1.5 border border-gray-200 rounded-xl py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  className={`flex-1 flex items-center justify-center gap-1.5 border rounded-xl py-2 text-sm transition-colors ${isVip ? 'border-amber-300 text-amber-700 hover:bg-amber-50' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
                 >
                   <KeyRound size={14} /> {t('change_password')}
                 </button>
               </div>
               <button
                 onClick={handleSignOut}
-                className="w-full flex items-center justify-center gap-1.5 border border-red-200 rounded-xl py-2 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                className={`w-full flex items-center justify-center gap-1.5 border rounded-xl py-2 text-sm transition-colors ${isVip ? 'border-red-300 text-red-500 hover:bg-red-50' : 'border-red-200 text-red-500 hover:bg-red-50'}`}
               >
                 <LogOut size={14} /> {t('logout')}
               </button>
@@ -229,17 +264,17 @@ export default function MyPage() {
           {/* My Orders entry */}
           <button
             onClick={() => setSubView('orders')}
-            className="w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3 text-left hover:border-sky-200 transition-colors"
+            className={`w-full rounded-2xl shadow-sm border p-4 flex items-center gap-3 text-left transition-colors ${isVip ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200 hover:border-amber-300' : 'bg-white border-gray-100 hover:border-sky-200'}`}
           >
-            <div className="w-10 h-10 bg-sky-50 rounded-xl flex items-center justify-center">
-              <PackageOpen size={20} className="text-sky-500" />
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isVip ? 'bg-gradient-to-br from-amber-400 to-orange-500' : 'bg-sky-50'}`}>
+              <PackageOpen size={20} className={isVip ? 'text-white' : 'text-sky-500'} />
             </div>
             <div className="flex-1">
               <p className={`font-semibold text-gray-900 ${isEn ? 'text-sm' : 'text-base'}`}>{isEn ? 'My Orders' : '我的订单'}</p>
               <p className={`text-gray-400 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'All bookings & history' : '查看全部预订记录'}</p>
             </div>
             {tickets.length > 0 && (
-              <span className="bg-sky-100 text-sky-600 text-xs font-semibold px-2 py-0.5 rounded-full">{activeTickets.length}</span>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isVip ? 'bg-amber-100 text-amber-600' : 'bg-sky-100 text-sky-600'}`}>{activeTickets.length}</span>
             )}
             <ChevronRight size={16} className="text-gray-300" />
           </button>

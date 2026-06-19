@@ -590,12 +590,34 @@ function BookingFormView({
   };
 
   const getTicketPrice = (ticketType: TicketType) => {
+    let basePrice: number;
     switch (ticketType) {
-      case 'child': return session.child_price ?? session.ticket_price * 0.5;
-      case 'concession': return session.concession_price ?? session.ticket_price * 0.8;
-      case 'vip': return session.vip_price ?? session.ticket_price * 1.5;
-      default: return session.ticket_price;
+      case 'child': basePrice = session.child_price ?? session.ticket_price * 0.5; break;
+      case 'concession': basePrice = session.concession_price ?? session.ticket_price * 0.8; break;
+      case 'vip': basePrice = session.vip_price ?? session.ticket_price * 1.5; break;
+      default: basePrice = session.ticket_price;
     }
+    // VIP discount: VIP users get 10% off on regular tickets
+    if (isVip && ticketType !== 'vip') {
+      basePrice = basePrice * 0.9;
+    }
+    return basePrice;
+  };
+
+  const getTicketPriceLabel = (ticketType: TicketType) => {
+    const originalPrice = (() => {
+      switch (ticketType) {
+        case 'child': return session.child_price ?? session.ticket_price * 0.5;
+        case 'concession': return session.concession_price ?? session.ticket_price * 0.8;
+        case 'vip': return session.vip_price ?? session.ticket_price * 1.5;
+        default: return session.ticket_price;
+      }
+    })();
+    const discountedPrice = getTicketPrice(ticketType);
+    if (isVip && ticketType !== 'vip' && discountedPrice < originalPrice) {
+      return { discounted: discountedPrice, original: originalPrice, isVipDiscount: true };
+    }
+    return { price: discountedPrice };
   };
 
   const totalPrice = orders.reduce((sum, order) => {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, UserProfile, Registration, SeatMapRow, Session } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { Plus, Trash2, User, Users, Pencil, TicketCheck, PackageOpen, X, Ticket, RefreshCw, Printer, AlertTriangle, Coins } from 'lucide-react';
+import { Plus, Trash2, User, Users, Pencil, TicketCheck, PackageOpen, X, Ticket, RefreshCw, Printer, AlertTriangle, Coins, Crown } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { renderTicketToCanvas, downloadTicket } from '../../lib/ticketGenerator';
 import ConfirmDialog from '../ConfirmDialog';
@@ -11,7 +11,7 @@ import ProxyBookingModal from './ProxyBookingModal';
 import ReprintConfirmModal from './ReprintConfirmModal';
 import SeatMap from '../SeatMap';
 
-type UserRow = UserProfile & { username: string };
+type UserRow = UserProfile & { username: string; is_vip?: boolean; vip_expire_at?: string };
 
 export default function UserManagement() {
   const { t } = useTranslation();
@@ -65,16 +65,12 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
   // Proxy booking
   const [proxyUser, setProxyUser] = useState<UserRow | null>(null);
 
-  // Recharge state
-  const [rechargeUser, setRechargeUser] = useState<UserRow | null>(null);
-  const [rechargeAmount, setRechargeAmount] = useState('');
-  const [rechargeReason, setRechargeReason] = useState('');
-  const [recharging, setRecharging] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<any>(null);
-  const [packages, setPackages] = useState<any[]>([]);
-  const [userBalances, setUserBalances] = useState<Map<string, number>>(new Map());
+  // VIP upgrade state
+  const [vipUser, setVipUser] = useState<UserRow | null>(null);
+  const [vipDuration, setVipDuration] = useState('30');
+  const [upgradingVip, setUpgradingVip] = useState(false);
 
-  useEffect(() => { fetchUsers(); fetchPackages(); }, []);
+  useEffect(() => { fetchUsers(); }, []);
 
   async function fetchUsers() {
     const { data } = await supabase.from('user_profiles').select('*').order('created_at', { ascending: false });
@@ -82,33 +78,6 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
       ...u,
       username: u.display_name || u.id.slice(0, 8),
     })));
-    fetchBalances(data ?? []);
-  }
-
-  async function fetchBalances(userList: any[]) {
-    const balances = new Map<string, number>();
-    for (const user of userList) {
-      try {
-        const { data } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: user.id });
-        let bal = 0;
-        if (data !== null && data !== undefined) {
-          if (typeof data === 'object') {
-            bal = Number((data as any).balance ?? (data as any).l_coin_balance ?? 0);
-          } else {
-            bal = Number(data) || 0;
-          }
-        }
-        balances.set(user.id, bal);
-      } catch {
-        balances.set(user.id, 0);
-      }
-    }
-    setUserBalances(balances);
-  }
-
-  async function fetchPackages() {
-    const { data } = await supabase.from('lcoin_recharge_packages').select('*').eq('is_active', true).order('sort_order');
-    setPackages(data || []);
   }
 
   function showToast(msg: string, type: 'success' | 'error' = 'success') {
@@ -188,34 +157,31 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
     setUpdating(false);
   }
 
-  async function handleRecharge() {
-    if (!rechargeUser || !rechargeAmount.trim()) return;
-    const amount = parseFloat(rechargeAmount);
-    if (amount <= 0) return;
+  async function handleUpgradeVip() {
+    if (!vipUser || !vipDuration.trim()) return;
+    const duration = parseInt(vipDuration);
+    if (duration <= 0) return;
 
-    setRecharging(true);
+    setUpgradingVip(true);
     try {
-      const { data, error } = await supabase.rpc('admin_recharge_lcoin', {
-        p_user_id: rechargeUser.id,
-        p_amount: amount,
-        p_description: rechargeReason.trim() || null,
+      const { data, error } = await supabase.rpc('upgrade_user_vip', {
+        p_user_id: vipUser.id,
+        p_duration_days: duration,
       });
 
-      if (error || !data) {
-        showToast(error?.message || '充值失败', 'error');
+      if (error || !data?.success) {
+        showToast((data as any)?.error || error?.message || '升级失败', 'error');
       } else {
-        showToast(`成功充值 ${amount} 兰克币`, 'success');
-        userBalances.set(rechargeUser.id, (userBalances.get(rechargeUser.id) || 0) + amount);
-        setUserBalances(new Map(userBalances));
-        setRechargeUser(null);
-        setRechargeAmount('');
-        setRechargeReason('');
-        setSelectedPackage(null);
+        const expireDate = new Date((data as any).vip_expire_at).toLocaleDateString();
+        showToast(`VIP升级成功，有效期至 ${expireDate}`, 'success');
+        setVipUser(null);
+        setVipDuration('30');
+        await fetchUsers();
       }
     } catch (e: any) {
-      showToast(e.message || '充值失败', 'error');
+      showToast(e.message || '升级失败', 'error');
     }
-    setRecharging(false);
+    setUpgradingVip(false);
   }
 
   return (
@@ -289,80 +255,91 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
         </div>
       )}
 
-      {/* Recharge Modal */}
-      {rechargeUser && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setRechargeUser(null)}>
+      {/* VIP Upgrade Modal */}
+      {vipUser && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40" onClick={() => setVipUser(null)}>
           <div
-            className="bg-white rounded-t-3xl w-full max-w-md p-5 space-y-4 max-h-[85vh] overflow-y-auto"
+            className="bg-gradient-to-b from-amber-50 to-white rounded-t-3xl w-full max-w-md p-5 space-y-4"
             onClick={e => e.stopPropagation()}
           >
-            <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
-              <Coins size={18} className="text-amber-500" /> 充值兰克币
-            </h3>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-              <p className="text-xs text-amber-700">用户：{rechargeUser.display_name || rechargeUser.id.slice(0, 8)}</p>
-              <p className="text-xs text-amber-600">手机号：{rechargeUser.phone || '未填写'}</p>
-              <p className="text-xs text-amber-600 mt-1">当前余额：<span className="font-bold">{userBalances.get(rechargeUser.id) || 0}</span> 兰克币</p>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-gray-900 text-base flex items-center gap-2">
+                <Crown size={20} className="text-amber-500" /> 升级VIP会员
+              </h3>
+              <button onClick={() => setVipUser(null)} className="p-1 hover:bg-gray-100 rounded-lg">
+                <X size={18} className="text-gray-400" />
+              </button>
             </div>
-            {packages.length > 0 && (
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">选择套餐（可选）</label>
-                <select
-                  value={selectedPackage?.id || ''}
-                  onChange={e => {
-                    const pkg = packages.find(p => p.id === e.target.value);
-                    setSelectedPackage(pkg || null);
-                    if (pkg) {
-                      setRechargeAmount(String(pkg.lcoin_amount));
-                    }
-                  }}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                >
-                  <option value="">手动输入金额</option>
-                  {packages.map(pkg => (
-                    <option key={pkg.id} value={pkg.id}>
-                      {pkg.name} — {pkg.price}元 = {pkg.lcoin_amount}兰克币
-                    </option>
-                  ))}
-                </select>
+
+            <div className="bg-gradient-to-r from-amber-100 to-orange-100 border border-amber-200 rounded-xl p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 bg-amber-500 rounded-full flex items-center justify-center">
+                  <User size={18} className="text-white" />
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{vipUser.display_name || vipUser.id.slice(0, 8)}</p>
+                  <p className="text-xs text-gray-500">{vipUser.phone || '未填写手机号'}</p>
+                </div>
               </div>
-            )}
+              {vipUser.is_vip && vipUser.vip_expire_at ? (
+                <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
+                  <Crown size={14} className="text-amber-500" />
+                  <span>当前VIP有效期至：{new Date(vipUser.vip_expire_at).toLocaleDateString()}</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2">
+                  <User size={14} />
+                  <span>当前不是VIP会员</span>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">充值金额（兰克币）</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">VIP时长（天）</label>
                 <input
-                  value={rechargeAmount}
-                  onChange={e => { setRechargeAmount(e.target.value); setSelectedPackage(null); }}
-                  placeholder="请输入充值金额"
+                  value={vipDuration}
+                  onChange={e => setVipDuration(e.target.value)}
+                  placeholder="请输入VIP时长"
                   type="number"
-                  min="0"
-                  step="0.01"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+                  min="1"
+                  max="365"
+                  className="w-full border border-amber-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
                 />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">备注（可选）</label>
-                <input
-                  value={rechargeReason}
-                  onChange={e => setRechargeReason(e.target.value)}
-                  placeholder="例如：会员充值、活动奖励"
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                />
+              <div className="grid grid-cols-4 gap-2">
+                {['7', '30', '90', '365'].map(days => (
+                  <button
+                    key={days}
+                    onClick={() => setVipDuration(days)}
+                    className={`py-2 rounded-lg text-sm font-medium transition-colors ${
+                      vipDuration === days
+                        ? 'bg-amber-500 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-amber-100'
+                    }`}
+                  >
+                    {days === '365' ? '1年' : `${days}天`}
+                  </button>
+                ))}
+              </div>
+              <div className="bg-amber-50 rounded-lg px-3 py-2 text-xs text-amber-600">
+                VIP特权：专属票价优惠、金色会员标识、优先客服支持
               </div>
             </div>
-            <div className="flex gap-2 pt-1 pb-2">
+
+            <div className="flex gap-2 pt-1">
               <button
-                onClick={() => setRechargeUser(null)}
+                onClick={() => setVipUser(null)}
                 className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 {t('cancel')}
               </button>
               <button
-                onClick={handleRecharge}
-                disabled={recharging || !rechargeAmount.trim() || parseFloat(rechargeAmount) <= 0}
-                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
+                onClick={handleUpgradeVip}
+                disabled={upgradingVip || !vipDuration.trim() || parseInt(vipDuration) <= 0}
+                className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white rounded-xl text-sm font-medium transition-colors disabled:opacity-60"
               >
-                {recharging ? '充值中...' : `确认充值 ${rechargeAmount} 兰克币`}
+                {upgradingVip ? '升级中...' : `确认升级 ${vipDuration} 天VIP`}
               </button>
             </div>
           </div>
@@ -426,22 +403,29 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
         </div>
       ) : (
         <div className="space-y-2">
-          {users.map(u => (
-            <div key={u.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          {users.map(u => {
+            const isVip = u.is_vip && u.vip_expire_at && new Date(u.vip_expire_at) > new Date();
+            return (
+            <div key={u.id} className={`rounded-2xl shadow-sm border p-4 ${isVip ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200' : 'bg-white border-gray-100'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-sky-50 rounded-xl flex items-center justify-center">
-                    <User size={16} className="text-sky-500" />
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${isVip ? 'bg-gradient-to-br from-amber-400 to-orange-500' : 'bg-sky-50'}`}>
+                    <User size={16} className={isVip ? 'text-white' : 'text-sky-500'} />
                   </div>
                   <div>
-                    <p className="font-semibold text-gray-900 text-sm">{u.username}</p>
+                    <p className="font-semibold text-gray-900 text-sm flex items-center gap-1.5">
+                      {u.username}
+                      {isVip && <Crown size={14} className="text-amber-500" />}
+                    </p>
                     <p className="text-xs text-gray-400">
                       {u.phone ? u.phone : <span className="text-amber-500">未填手机号</span>}
                       {' · '}{new Date(u.created_at).toLocaleDateString()}
                     </p>
-                    <p className="text-xs text-amber-500 mt-0.5 flex items-center gap-1">
-                      <Coins size={10} /> {userBalances.get(u.id) || 0} 兰克币
-                    </p>
+                    {isVip && u.vip_expire_at && (
+                      <p className="text-xs text-amber-600 mt-0.5 flex items-center gap-1">
+                        <Crown size={10} /> VIP有效期至：{new Date(u.vip_expire_at).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -458,10 +442,10 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
                     <TicketCheck size={12} /> 代客预约
                   </button>
                   <button
-                    onClick={() => { setRechargeUser(u); setRechargeAmount(''); setRechargeReason(''); }}
-                    className="flex items-center gap-1 text-xs text-amber-600 border border-amber-200 px-2.5 py-1.5 rounded-lg hover:bg-amber-50 transition-colors"
+                    onClick={() => { setVipUser(u); setVipDuration('30'); }}
+                    className={`flex items-center gap-1 text-xs border px-2.5 py-1.5 rounded-lg transition-colors ${isVip ? 'text-amber-600 border-amber-200 hover:bg-amber-50' : 'text-orange-600 border-orange-200 hover:bg-orange-50'}`}
                   >
-                    <Coins size={12} /> 充值
+                    <Crown size={12} /> {isVip ? '续费VIP' : '升级VIP'}
                   </button>
                   <button
                     onClick={() => openEdit(u)}
@@ -478,7 +462,8 @@ function UserList({ onViewOrders }: { onViewOrders: (user: UserRow) => void }) {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
