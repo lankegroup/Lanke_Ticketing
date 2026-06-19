@@ -590,14 +590,14 @@ function BookingFormView({
   };
 
   const getTicketPrice = (ticketType: TicketType) => {
-    let basePrice: number;
+    if (!session) return 0;
+    let basePrice: number = session.ticket_price || 0;
     switch (ticketType) {
-      case 'child': basePrice = session.child_price ?? session.ticket_price * 0.5; break;
-      case 'concession': basePrice = session.concession_price ?? session.ticket_price * 0.8; break;
-      case 'vip': basePrice = session.vip_price ?? session.ticket_price * 1.5; break;
-      default: basePrice = session.ticket_price;
+      case 'child': basePrice = session.child_price ?? (session.ticket_price || 0) * 0.5; break;
+      case 'concession': basePrice = session.concession_price ?? (session.ticket_price || 0) * 0.8; break;
+      case 'vip': basePrice = session.vip_price ?? (session.ticket_price || 0) * 1.5; break;
+      default: basePrice = session.ticket_price || 0;
     }
-    // VIP discount: VIP users get 10% off on regular tickets
     if (isVip && ticketType !== 'vip') {
       basePrice = basePrice * 0.9;
     }
@@ -605,12 +605,13 @@ function BookingFormView({
   };
 
   const getTicketPriceLabel = (ticketType: TicketType) => {
+    if (!session) return { price: 0 };
     const originalPrice = (() => {
       switch (ticketType) {
-        case 'child': return session.child_price ?? session.ticket_price * 0.5;
-        case 'concession': return session.concession_price ?? session.ticket_price * 0.8;
-        case 'vip': return session.vip_price ?? session.ticket_price * 1.5;
-        default: return session.ticket_price;
+        case 'child': return session.child_price ?? (session.ticket_price || 0) * 0.5;
+        case 'concession': return session.concession_price ?? (session.ticket_price || 0) * 0.8;
+        case 'vip': return session.vip_price ?? (session.ticket_price || 0) * 1.5;
+        default: return session.ticket_price || 0;
       }
     })();
     const discountedPrice = getTicketPrice(ticketType);
@@ -620,11 +621,11 @@ function BookingFormView({
     return { price: discountedPrice };
   };
 
-  const totalPrice = orders.reduce((sum, order) => {
+  const totalPrice = session ? orders.reduce((sum, order) => {
     const price = getTicketPrice(order.ticketType);
     const fee = session.default_service_fee || 0;
     return sum + (price + fee);
-  }, 0);
+  }, 0) : 0;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

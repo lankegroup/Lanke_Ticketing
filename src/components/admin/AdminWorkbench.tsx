@@ -734,37 +734,6 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     
     lcoinPayAmount = Math.round(lcoinPayAmount * 100) / 100;
 
-    if (lcoinPayAmount > 0 && matchedUserId) {
-      const { data: realTimeBalData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: matchedUserId });
-      const realTimeBalance = typeof realTimeBalData === 'number' ? realTimeBalData : 0;
-
-      if (realTimeBalance < lcoinPayAmount) {
-        setError(`余额不足！当前余额 ${realTimeBalance} L-Coin，需支付 ${lcoinPayAmount} L-Coin`);
-        setCustomerBalance(realTimeBalance);
-        setSubmitting(false);
-        return;
-      }
-
-      const deductResult = await supabase.rpc('create_lcoin_transaction', {
-        p_user_id: matchedUserId,
-        p_transaction_type: 'purchase',
-        p_amount: lcoinPayAmount,
-        p_session_id: selectedSession.id,
-        p_operator_type: 'front_desk',
-        p_description: `购票：${selectedSession.name}`,
-        p_payment_method: 'lcoin',
-      });
-
-      const resultData = deductResult.data as any;
-      if (!resultData?.success) {
-        const { data: afterErrorBal } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: matchedUserId });
-        setCustomerBalance(typeof afterErrorBal === 'number' ? afterErrorBal : 0);
-        setError(resultData?.error || '扣款失败，请重试');
-        setSubmitting(false);
-        return;
-      }
-    }
-
     const itemsToBook: { seatId: string | null; ticketType: TicketType }[] = selectedSession.has_seating_chart
       ? selectedSeatIds.map(seatId => ({ seatId, ticketType: seatTicketTypes[seatId] || 'adult' }))
       : entryTicketTypes.map(ticketType => ({ seatId: null, ticketType }));
@@ -772,17 +741,29 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
     const results: { ticket_code: string; seat_name?: string; registration_id?: string; ticket_type?: TicketType }[] = [];
 
     for (const item of itemsToBook) {
-      const res = await supabase.rpc('admin_book_ticket', {
-        p_session_id: selectedSession.id,
-        p_seat_id: item.seatId,
-        p_name: name.trim(),
-        p_phone: phone.trim(),
-        p_user_id: matchedUserId ?? null,
-        p_force: false,
-        p_order_source: 'front_desk',
-        p_ticket_type: item.ticketType,
-        p_is_supplementary: isSupplementary,
-      });
+      let res;
+      if (item.seatId) {
+        res = await supabase.rpc('book_ticket_with_seat', {
+          p_session_id: selectedSession.id,
+          p_seat_id: item.seatId,
+          p_name: name.trim(),
+          p_phone: phone.trim(),
+          p_user_id: matchedUserId ?? null,
+          p_ticket_type: item.ticketType,
+          p_buyer_user_id: null,
+          p_note_content: isSupplementary ? '补打' : null,
+        });
+      } else {
+        res = await supabase.rpc('book_ticket', {
+          p_session_id: selectedSession.id,
+          p_name: name.trim(),
+          p_phone: phone.trim(),
+          p_user_id: matchedUserId ?? null,
+          p_ticket_type: item.ticketType,
+          p_buyer_user_id: null,
+          p_note_content: isSupplementary ? '补打' : null,
+        });
+      }
       const rpcResult = res.data as any;
       if (res.error || !rpcResult?.success) {
         setSubmitting(false);
@@ -791,6 +772,14 @@ function FrontDeskView({ isMobile = false, onExit }: { isMobile?: boolean; onExi
       }
       const seatName = item.seatId ? seats.find(s => s.id === item.seatId)?.seat_name : undefined;
       results.push({ ticket_code: rpcResult.ticket_code, seat_name: seatName, registration_id: rpcResult.registration_id, ticket_type: item.ticketType });
+    }
+
+    if (rmbPayAmount > 0) {
+      await supabase.rpc('admin_recharge_lcoin', {
+        p_user_id: matchedUserId ?? null,
+        p_amount: rmbPayAmount,
+        p_description: `前台人民币支付: ${rmbPayAmount}元`,
+      });
     }
 
     setSubmitting(false);
