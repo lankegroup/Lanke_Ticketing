@@ -158,10 +158,14 @@ $$;
 
 -- ── 5. lcoin 相关表 ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS lcoin_accounts (
-  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id    UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
-  balance    NUMERIC(18,4) NOT NULL DEFAULT 0,
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id        UUID NOT NULL UNIQUE REFERENCES auth.users(id) ON DELETE CASCADE,
+  balance        NUMERIC(18,4) NOT NULL DEFAULT 0,
+  frozen_balance NUMERIC(18,4) NOT NULL DEFAULT 0,
+  is_vip         BOOLEAN NOT NULL DEFAULT FALSE,
+  vip_expire_at  TIMESTAMPTZ,
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS lcoin_transactions (
