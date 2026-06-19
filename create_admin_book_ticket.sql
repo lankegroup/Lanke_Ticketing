@@ -1,4 +1,4 @@
-﻿-- Create admin_book_ticket function
+﻿﻿-- Create admin_book_ticket function
 DROP FUNCTION IF EXISTS admin_book_ticket(uuid,uuid,text,text,uuid,boolean,text,boolean,text);
 
 CREATE OR REPLACE FUNCTION admin_book_ticket(
