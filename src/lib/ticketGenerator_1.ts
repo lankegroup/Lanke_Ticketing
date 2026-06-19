@@ -22,9 +22,6 @@ export interface TicketParams {
   serviceFee?: number;
   paidAt?: string;
   printedAt?: string;
-  paymentMethod?: 'rmb' | 'lcoin' | 'mixed';
-  rmbAmount?: number;
-  purchaseChannel?: 'online' | 'offline';
 }
 
 function toCnPinyin(text: string): string {
