@@ -1,4 +1,4 @@
-﻿﻿﻿DROP FUNCTION IF EXISTS public.admin_book_ticket(uuid,text,text,uuid,uuid,boolean,text);
+﻿﻿﻿﻿﻿DROP FUNCTION IF EXISTS public.admin_book_ticket(uuid,text,text,uuid,uuid,boolean,text);
 
 CREATE OR REPLACE FUNCTION public.admin_book_ticket(
   p_session_id       UUID,
