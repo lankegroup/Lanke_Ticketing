@@ -250,6 +250,7 @@ export default function ClientHome() {
           prefillName={userProfile?.display_name || ''}
           prefillPhone={userProfile?.phone || ''}
           userId={user?.id || null}
+          isVip={isVip}
           selectedSeats={selectedSeats}
           nonSeatEntries={nonSeatEntries}
           onUpdateSeatTicketType={updateSeatTicketType}
@@ -506,7 +507,7 @@ function SessionDetailView({
 // ─── Booking Form View ──────────────────────────────────────────────────────
 
 function BookingFormView({
-  session, isEn, prefillName, prefillPhone, userId,
+  session, isEn, prefillName, prefillPhone, userId, isVip,
   selectedSeats, nonSeatEntries, onUpdateSeatTicketType, onUpdateNonSeatEntryTicketType,
   onAddNonSeatEntry, onRemoveNonSeatEntry,
   onBack, onSuccess, onSoldOut, onSessionExpired, showToast,
@@ -516,6 +517,7 @@ function BookingFormView({
           prefillName: string;
           prefillPhone: string;
           userId: string | null;
+          isVip: boolean;
           selectedSeats: SeatWithTicket[];
           nonSeatEntries: NonSeatEntry[];
           onUpdateSeatTicketType: (seatId: string, ticketType: TicketType) => void;
