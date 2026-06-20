@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { p_session_id, p_seat_id, p_name, p_phone, p_user_id, p_ticket_type, p_buyer_user_id, p_note_content } = await req.json();
+    const { p_session_id, p_seat_id, p_name, p_phone, p_user_id, p_ticket_type, p_buyer_user_id, p_note_content, p_lcoin_amount, p_cash_amount } = await req.json();
 
     if (!p_session_id || !p_name || !p_phone) {
       return new Response(JSON.stringify({ error: "missing_params" }), {
@@ -63,8 +63,8 @@ Deno.serve(async (req: Request) => {
 
     const rpcName = p_seat_id ? "book_ticket_with_seat" : "book_ticket";
     const rpcBody = p_seat_id
-      ? { p_session_id, p_seat_id, p_name, p_phone, p_user_id: p_user_id ?? null, p_ticket_type: ticketType, p_buyer_user_id: p_buyer_user_id ?? null, p_note_content: p_note_content ?? null }
-      : { p_session_id, p_name, p_phone, p_user_id: p_user_id ?? null, p_ticket_type: ticketType, p_buyer_user_id: p_buyer_user_id ?? null, p_note_content: p_note_content ?? null };
+      ? { p_session_id, p_seat_id, p_name, p_phone, p_user_id: p_user_id ?? null, p_ticket_type: ticketType, p_buyer_user_id: p_buyer_user_id ?? null, p_note_content: p_note_content ?? null, p_lcoin_amount: p_lcoin_amount ?? 0, p_cash_amount: p_cash_amount ?? 0 }
+      : { p_session_id, p_name, p_phone, p_user_id: p_user_id ?? null, p_ticket_type: ticketType, p_buyer_user_id: p_buyer_user_id ?? null, p_note_content: p_note_content ?? null, p_lcoin_amount: p_lcoin_amount ?? 0, p_cash_amount: p_cash_amount ?? 0 };
 
     const res = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpcName}`, {
       method: "POST",

@@ -301,6 +301,8 @@ export default function ProxyBookingModal({ user, onClose, onSuccess }: ProxyBoo
       p_is_supplementary: false,
       p_ticket_type: ticketType,
       p_note_content: null,
+      p_lcoin_amount: ticketPrice,
+      p_cash_amount: 0,
     });
 
     const rpcResult = bookResult.data as any;

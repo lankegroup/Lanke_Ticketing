@@ -1,4 +1,4 @@
-﻿import { type FormEvent, useEffect, useRef, useState } from 'react';
+﻿﻿import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supabase, callEdgeFunction, Registration, FeedbackTicket, formatSeatName, SeatMapRow, Session, getDisplayStatus } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';

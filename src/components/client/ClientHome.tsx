@@ -717,6 +717,9 @@ function BookingFormView({
 
         const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
         const ticketType = order.ticketType;
+        const ticketPrice = getTicketPrice(ticketType);
+        const serviceFee = session.default_service_fee || 0;
+        const orderTotal = ticketPrice + serviceFee;
 
         const bookResult = await callEdgeFunction('book-ticket', {
           p_session_id: session.id,
@@ -727,6 +730,8 @@ function BookingFormView({
           p_ticket_type: ticketType,
           p_buyer_user_id: buyerUserId ?? null,
           p_note_content: noteContent.trim() || null,
+          p_lcoin_amount: orderTotal,
+          p_cash_amount: 0,
         });
         const rpcResult = bookResult.data as any;
 
@@ -816,6 +821,9 @@ function BookingFormView({
 
         const seatId = hasSeats ? (order as SeatWithTicket).seatId : null;
         const ticketType = order.ticketType;
+        const ticketPrice = getTicketPrice(ticketType);
+        const serviceFee = session.default_service_fee || 0;
+        const orderTotal = ticketPrice + serviceFee;
 
         const bookResult = await callEdgeFunction('book-ticket', {
           p_session_id: session.id,
@@ -826,6 +834,8 @@ function BookingFormView({
           p_ticket_type: ticketType,
           p_buyer_user_id: buyerUserId ?? null,
           p_note_content: noteContent.trim() || null,
+          p_lcoin_amount: orderTotal,
+          p_cash_amount: 0,
         });
         const rpcResult = bookResult.data as any;
 
