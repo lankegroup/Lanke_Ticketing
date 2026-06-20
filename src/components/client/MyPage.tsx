@@ -271,8 +271,8 @@ export default function MyPage() {
               <PackageOpen size={20} className={isVip ? 'text-white' : 'text-sky-500'} />
             </div>
             <div className="flex-1">
-              <p className={`font-semibold text-gray-900 ${isEn ? 'text-sm' : 'text-base'}`}>{isEn ? 'My Orders' : '鎴戠殑璁㈠崟'}</p>
-              <p className={`text-gray-400 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'All bookings & history' : '鏌ョ湅鍏ㄩ儴棰勮璁板綍'}</p>
+              <p className={`font-semibold text-gray-900 ${isEn ? 'text-sm' : 'text-base'}`}>{isEn ? 'My Orders' : '我的订单'}</p>
+              <p className={`text-gray-400 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'All bookings & history' : '查看全部预订记录'}</p>
             </div>
             {tickets.length > 0 && (
               <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${isVip ? 'bg-amber-100 text-amber-600' : 'bg-sky-100 text-sky-600'}`}>{activeTickets.length}</span>
@@ -397,7 +397,7 @@ function OrdersView({
     if (error || (data as any)?.success === false) {
       showLocalToast(t('operation_failed'), 'error');
     } else {
-      showLocalToast(isEn ? 'Order deleted' : '璁㈠崟宸插垹闄?, 'success');
+      showLocalToast(isEn ? 'Order deleted' : '订单已删除', 'success');
       onRefresh();
     }
   }
@@ -422,10 +422,10 @@ function OrdersView({
       const penaltyMsg = result.penalty_amount && result.penalty_amount > 0
         ? isEn 
           ? `Booking cancelled. Penalty: ${result.penalty_amount} LC, Refunded: ${result.refunded_lcoin} LC`
-          : `璁㈠崟宸插彇娑堛€傞€€绁ㄨ垂锛?{result.penalty_amount} 鍏板厠甯侊紝閫€鍥烇細${result.refunded_lcoin} 鍏板厠甯乣
+          : `订单已取消。扣除手续费：${result.penalty_amount} 兰克币，退回：${result.refunded_lcoin} 兰克币`
         : isEn 
           ? 'Booking cancelled, full refund processed'
-          : '璁㈠崟宸插彇娑堬紝鍏ㄩ閫€娆惧凡澶勭悊';
+          : '订单已取消，全额退款已处理';
       showLocalToast(penaltyMsg, 'success');
       onRefresh();
     }
@@ -435,7 +435,7 @@ function OrdersView({
     const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
     if (error || (data as any)?.success === false) {
       console.log('get_cancel_preview failed:', { error, data });
-      showLocalToast(isEn ? 'Failed to get refund info' : '鑾峰彇閫€绁ㄤ俊鎭け璐?, 'error');
+      showLocalToast(isEn ? 'Failed to get refund info' : '获取退票信息失败', 'error');
     } else {
       const preview = data as any;
       setCancelPreview({
@@ -463,17 +463,17 @@ function OrdersView({
           onClose={() => setChangeSeatTicket(null)}
           onSuccess={() => {
             setChangeSeatTicket(null);
-            showLocalToast(isEn ? 'Seat changed successfully' : '鎹㈠骇鎴愬姛', 'success');
+            showLocalToast(isEn ? 'Seat changed successfully' : '座位更换成功', 'success');
             onRefresh();
           }}
         />
       )}
       {confirmDelete && (
         <ConfirmDialog
-          title={isEn ? 'Delete Order' : '鍒犻櫎璁㈠崟'}
+          title={isEn ? 'Delete Order' : '删除订单'}
           message={isEn
             ? 'Are you sure you want to delete this order? This cannot be undone.'
-            : '纭畾瑕佸垹闄ゆ璁㈠崟鍚楋紵鍒犻櫎鍚庡皢鏃犳硶鎭㈠銆?}
+            : '确定要删除此订单吗？删除后将无法恢复。'}
           onConfirm={() => handleDelete(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
         />
@@ -493,13 +493,13 @@ function OrdersView({
         <button onClick={onBack} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
           <X size={18} />
         </button>
-        <span className={`font-semibold ${isEn ? 'text-sm' : 'text-base'}`}>{isEn ? 'My Orders' : '鎴戠殑璁㈠崟'}</span>
+        <span className={`font-semibold ${isEn ? 'text-sm' : 'text-base'}`}>{isEn ? 'My Orders' : '我的订单'}</span>
         <span className="text-sky-200 text-xs">{tickets.length} {isEn ? 'total' : '鏉¤褰?}</span>
         <button
           onClick={handleRefresh}
           disabled={refreshing || loading}
           className="ml-auto p-1.5 hover:bg-white/20 rounded-lg transition-colors disabled:opacity-50"
-          title={isEn ? 'Refresh' : '鍒锋柊'}
+          title={isEn ? 'Refresh' : '刷新'}
         >
           <RefreshCw size={16} className={refreshing || loading ? 'animate-spin' : ''} />
         </button>
@@ -523,8 +523,8 @@ function OrdersView({
           function TicketCard({ ticket }: { ticket: Registration }) {
             const s = ticket.sessions as any;
             const sessionLabel = s
-              ? `${s.name} 路 ${s.session_date} ${s.start_time?.slice(0, 5)}鈥?{s.end_time?.slice(0, 5)}`
-              : (isEn ? '(Session deleted)' : '锛堝満娆″凡鍒犻櫎锛?);
+              ? `${s.name} - ${s.session_date} ${s.start_time?.slice(0, 5)}-${s.end_time?.slice(0, 5)}`
+              : (isEn ? '(Session deleted)' : '（会场已删除）');
             const effectiveStatus = getDisplayStatus(ticket);
             const cfg = statusConfig[effectiveStatus] || statusConfig.active;
             const isActive = effectiveStatus === 'active';
@@ -541,7 +541,7 @@ function OrdersView({
                     <p className={`font-semibold text-gray-900 ${isEn ? 'text-xs' : 'text-sm'}`}>{ticket.name}</p>
                     <p className={`text-gray-500 truncate ${isEn ? 'text-[10px]' : 'text-xs'}`}>{sessionLabel}</p>
                     {(ticket as any).seats?.seat_name && (
-                      <p className="text-sky-600 text-xs font-medium mt-0.5">{isEn ? 'Seat: ' : '搴т綅锛?}{formatSeatName((ticket as any).seats.seat_name, isEn)}</p>
+                      <p className="text-sky-600 text-xs font-medium mt-0.5">{isEn ? 'Seat: ' : '座位：}{formatSeatName((ticket as any).seats.seat_name, isEn)}</p>
                     )}
                     <p className="font-mono text-sky-600 text-xs mt-0.5">{ticket.ticket_code}</p>
                   </div>
@@ -564,7 +564,7 @@ function OrdersView({
                         onClick={() => setChangeSeatTicket(ticket)}
                         className="flex-1 text-xs text-emerald-600 border border-emerald-200 py-1.5 rounded-lg hover:bg-emerald-50 transition-colors text-center flex items-center justify-center gap-1"
                       >
-                        <RefreshCw size={10} /> {isEn ? 'Change Seat' : '鏇存崲搴т綅'}
+                        <RefreshCw size={10} /> {isEn ? 'Change Seat' : '更换座位'}
                       </button>
                     )}
                     {isActive && (
@@ -582,7 +582,7 @@ function OrdersView({
                         disabled={deleting}
                         className="flex items-center justify-center gap-1 text-xs text-gray-400 border border-gray-200 py-1.5 px-3 rounded-lg hover:bg-red-50 hover:text-red-500 hover:border-red-200 transition-colors disabled:opacity-50"
                       >
-                        <Trash2 size={11} /> {isEn ? 'Delete' : '鍒犻櫎'}
+                        <Trash2 size={11} /> {isEn ? 'Delete' : '删除'}
                       </button>
                     )}
                   </div>
@@ -595,13 +595,13 @@ function OrdersView({
             <div className="space-y-4">
               {activeTickets.length > 0 && (
                 <div className="space-y-3">
-                  <p className={`font-semibold text-gray-700 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'Active Tickets' : '杩涜涓殑璁㈠崟'}</p>
+                  <p className={`font-semibold text-gray-700 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'Active Tickets' : '进行中的订单'}</p>
                   {activeTickets.map(ticket => <TicketCard key={ticket.id} ticket={ticket} />)}
                 </div>
               )}
               {historicalTickets.length > 0 && (
                 <div className="space-y-3">
-                  <p className={`font-semibold text-gray-500 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'History' : '鍘嗗彶璁板綍'}</p>
+                  <p className={`font-semibold text-gray-500 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'History' : '历史记录'}</p>
                   {historicalTickets.map(ticket => <TicketCard key={ticket.id} ticket={ticket} />)}
                 </div>
               )}
@@ -693,9 +693,9 @@ function ChangeSeatModal({
 
     if (lockErr || !data?.success) {
       const reason = data?.reason;
-      if (reason === 'already_booked') setError(isEn ? 'This seat is already booked' : '璇ュ骇浣嶅凡琚璁?);
-      else if (reason === 'locked_by_other') setError(isEn ? 'This seat is being held by someone else, please try again' : '璇ュ骇浣嶆琚粬浜洪€夋嫨锛岃绋嶅悗閲嶈瘯');
-      else setError(isEn ? 'Failed to lock seat, please try again' : '搴т綅閿佸畾澶辫触锛岃閲嶈瘯');
+      if (reason === 'already_booked') setError(isEn ? 'This seat is already booked' : '该座位已被预订');
+      else if (reason === 'locked_by_other') setError(isEn ? 'This seat is being held by someone else, please try again' : '该座位正被他人选择，请稍后重试');
+      else setError(isEn ? 'Failed to lock seat, please try again' : '座位锁定失败，请重试');
       setTimeout(() => setError(''), 3000);
       await fetchSeats();
       return;
@@ -725,7 +725,7 @@ function ChangeSeatModal({
     });
     setSaving(false);
     if (rpcError || (data as any)?.success === false) {
-      setError((data as any)?.error || rpcError?.message || (isEn ? 'Failed to change seat' : '鎹㈠骇澶辫触锛岃閲嶈瘯'));
+      setError((data as any)?.error || rpcError?.message || (isEn ? 'Failed to change seat' : '换座失败，请重试'));
     } else {
       lockedSeatRef.current = null;
       onSuccess();
@@ -743,8 +743,8 @@ function ChangeSeatModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
           <div>
-            <h3 className="font-bold text-gray-900 text-base">{isEn ? 'Change Seat' : '鏇存崲搴т綅'}</h3>
-            <p className="text-xs text-gray-400">{currentSeatName ? `${isEn ? 'Current:' : '褰撳墠锛?}${currentSeatName}` : (isEn ? 'No current seat' : '鏆傛棤搴т綅')}</p>
+            <h3 className="font-bold text-gray-900 text-base">{isEn ? 'Change Seat' : '更换座位'}</h3>
+            <p className="text-xs text-gray-400">{currentSeatName ? `${isEn ? 'Current:' : '当前：}${currentSeatName}` : (isEn ? 'No current seat' : '暂无座位')}</p>
           </div>
           <button onClick={handleClose} className="p-1.5 hover:bg-gray-100 rounded-full"><X size={18} /></button>
         </div>
@@ -752,12 +752,12 @@ function ChangeSeatModal({
         {/* Scrollable body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-xs text-amber-700">
-            {isEn ? 'You may change your seat once only.' : '姣忓紶绁ㄤ粎鍙洿鎹竴娆″骇浣嶃€?}
+            {isEn ? 'You may change your seat once only.' : '每张票仅可更换一次座位。'}
           </div>
 
           {ticket.reschedule_history && ticket.reschedule_history.length > 0 && (
             <div className="bg-gray-50 rounded-xl p-3">
-              <p className="text-xs font-medium text-gray-500 mb-2">{isEn ? 'Change history' : '鎹㈠骇璁板綍'}</p>
+              <p className="text-xs font-medium text-gray-500 mb-2">{isEn ? 'Change history' : '更换记录'}</p>
               {ticket.reschedule_history.map((h, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
                   <span>{h.from_seat}</span>
@@ -770,7 +770,7 @@ function ChangeSeatModal({
           )}
 
           {loading ? (
-            <p className="text-center text-sm text-gray-400 py-6">{isEn ? 'Loading...' : '鍔犺浇涓?..'}</p>
+            <p className="text-center text-sm text-gray-400 py-6">{isEn ? 'Loading...' : '加载中...'}</p>
           ) : (
             <div className="bg-white rounded-2xl border border-gray-100 p-3">
               <SeatMap
@@ -789,7 +789,7 @@ function ChangeSeatModal({
 
           {selectedSeat && (
             <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5">
-              <p className="text-xs text-sky-600">{isEn ? 'New seat' : '鏂板骇浣?}</p>
+              <p className="text-xs text-sky-600">{isEn ? 'New seat' : '新座位}</p>
               <p className="font-bold text-sky-700">{selectedSeat.seat_name}</p>
             </div>
           )}
@@ -803,14 +803,14 @@ function ChangeSeatModal({
             onClick={handleClose}
             className="flex-1 py-3 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition-colors"
           >
-            {isEn ? 'Cancel' : '鍙栨秷'}
+            {isEn ? 'Cancel' : '取消'}
           </button>
           <button
             onClick={handleConfirm}
             disabled={!selectedSeatId || saving || locking}
             className="flex-1 py-3 bg-sky-500 hover:bg-sky-400 disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition-colors"
           >
-            {saving ? (isEn ? 'Saving...' : '淇濆瓨涓?..') : selectedSeatId ? (isEn ? `Confirm: ${selectedSeat?.seat_name}` : `纭鎹㈣嚦 ${selectedSeat?.seat_name}`) : (isEn ? 'Select a seat' : '璇烽€夋嫨鏂板骇浣?)}
+            {saving ? (isEn ? 'Saving...' : '保存中...') : selectedSeatId ? (isEn ? `Confirm: ${selectedSeat?.seat_name}` : `确认换到 ${selectedSeat?.seat_name}`) : (isEn ? 'Select a seat' : '请选择座位')}
           </button>
         </div>
       </div>
@@ -928,7 +928,7 @@ function FeedbackView({ onBack }: { onBack: () => void }) {
                   </span>
                 </div>
                 {fb.description && <p className="text-xs text-gray-500">{fb.description}</p>}
-                <p className="text-[10px] text-gray-400">{t('feedback_number')}: {fb.ticket_number} 路 {new Date(fb.created_at).toLocaleString()}</p>
+                <p className="text-[10px] text-gray-400">{t('feedback_number')}: {fb.ticket_number} - {new Date(fb.created_at).toLocaleString()}</p>
                 {fb.admin_reply ? (
                   <div className="bg-sky-50 rounded-xl p-3 mt-1">
                     <p className="text-xs font-medium text-sky-700 mb-1">{t('feedback_reply')}</p>
@@ -1142,13 +1142,13 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
 
   const formatType = (type: string) => {
     switch (type) {
-      case 'recharge': return isEn ? 'Recharge' : '鍏呭€?;
-      case 'purchase': return isEn ? 'Purchase' : '璐エ娑堣垂';
-      case 'refund': return isEn ? 'Refund' : '閫€娆?;
-      case 'adjust_add': return isEn ? 'Adjustment (+)' : '璋冩暣澧炲姞';
-      case 'adjust_subtract': return isEn ? 'Adjustment (-)' : '璋冩暣鍑忓皯';
-      case 'fee': return isEn ? 'Fee' : '鎵嬬画璐?;
-      case 'reschedule': return isEn ? 'Reschedule' : '鏀圭';
+      case 'recharge': return isEn ? 'Recharge' : '充值';
+      case 'purchase': return isEn ? 'Purchase' : '购票消费';
+      case 'refund': return isEn ? 'Refund' : '退款';
+      case 'adjust_add': return isEn ? 'Adjustment (+)' : '调整增加';
+      case 'adjust_subtract': return isEn ? 'Adjustment (-)' : '调整减少';
+      case 'fee': return isEn ? 'Fee' : '手续费';
+      case 'reschedule': return isEn ? 'Reschedule' : '改签';
       default: return type;
     }
   };
@@ -1175,7 +1175,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
 
   const defaultDesc = isEn
     ? 'Please contact customer service to confirm your Lanke Coins recharge.'
-    : '濡傞渶鍏呭€煎叞鍏嬪竵锛岃鑱旂郴瀹㈡湇纭銆?;
+    : '如需充值兰克币，请联系客服确认。';
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1189,9 +1189,9 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
       <div className="p-4 space-y-4">
         {/* Balance Card */}
         <div className="bg-gradient-to-br from-amber-500 to-amber-400 rounded-2xl p-6 text-white text-center">
-          <p className="text-white/80 text-sm mb-1">{isEn ? 'Current Balance' : '褰撳墠浣欓'}</p>
+          <p className="text-white/80 text-sm mb-1">{isEn ? 'Current Balance' : '当前余额'}</p>
           <p className="text-4xl font-bold">{balance}</p>
-          <p className="text-white/70 text-xs mt-1">{isEn ? 'Lanke Coins' : '兰克币}</p>
+          <p className="text-white/70 text-xs mt-1">{isEn ? 'Lanke Coins' : '兰克币'}</p>
         </div>
 
         {/* Tabs */}
@@ -1202,7 +1202,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
               activeTab === 'packages' ? 'bg-amber-50 text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            <Package size={15} /> {isEn ? 'Packages' : '鍏呭€煎椁?}
+            <Package size={15} /> {isEn ? 'Packages' : '充值套餐'}
           </button>
           <button
             onClick={() => setActiveTab('transactions')}
@@ -1210,7 +1210,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
               activeTab === 'transactions' ? 'bg-amber-50 text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            <History size={15} /> {isEn ? 'Records' : '浜ゆ槗璁板綍'}
+            <History size={15} /> {isEn ? 'Records' : '交易记录'}
           </button>
           <button
             onClick={() => setActiveTab('guide')}
@@ -1218,7 +1218,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
               activeTab === 'guide' ? 'bg-amber-50 text-amber-600 border-b-2 border-amber-500' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
-            <Info size={15} /> {isEn ? 'Guide' : '鍏呭€艰鏄?}
+            <Info size={15} /> {isEn ? 'Guide' : '充值说明'}
           </button>
         </div>
 
@@ -1230,17 +1230,17 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
             ) : packages.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
                 <Package size={32} className="text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-400 text-sm">{isEn ? 'No packages available' : '鏆傛棤鍏呭€煎椁?}</p>
+                <p className="text-gray-400 text-sm">{isEn ? 'No packages available' : '暂无充值套餐'}</p>
               </div>
             ) : (
               packages.map(pkg => (
                 <div key={pkg.id} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-gray-900">{isEn ? (pkg.name_en || pkg.name) : pkg.name}</h4>
-                    <span className="text-lg font-bold text-amber-500">{pkg.lcoin_amount} {isEn ? 'LC' : '兰克币}</span>
+                    <span className="text-lg font-bold text-amber-500">{pkg.lcoin_amount} {isEn ? 'LC' : '兰克币'}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-500">{isEn ? 'Price' : '浠锋牸'}锛?span className="font-medium text-gray-900">{pkg.price}</span> {isEn ? 'RMB' : '鍏?}</span>
+                    <span className="text-gray-500">{isEn ? 'Price' : '价格'}：<span className="font-medium text-gray-900">{pkg.price}</span> {isEn ? 'RMB' : '元'}</span>
                   </div>
                   {pkg.description && (
                     <p className="text-xs text-gray-400">{isEn ? (pkg.description_en || pkg.description) : pkg.description}</p>
@@ -1259,7 +1259,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
             ) : transactions.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
                 <History size={32} className="text-gray-300 mx-auto mb-2" />
-                <p className="text-gray-400 text-sm">{isEn ? 'No transactions yet' : '鏆傛棤浜ゆ槗璁板綍'}</p>
+                <p className="text-gray-400 text-sm">{isEn ? 'No transactions yet' : '暂无交易记录'}</p>
               </div>
             ) : (
               transactions.map((tx) => (
@@ -1284,7 +1284,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
                   </div>
                   {tx.description && <p className="text-xs text-gray-500 mt-1">{tx.description}</p>}
                   <div className="text-xs text-gray-400 mt-1">
-                    {isEn ? 'Balance' : '浣欓'}锛歿tx.balance_before} 鈫?{tx.balance_after}
+                    {isEn ? 'Balance' : '余额'}：${tx.balance_before} → ${tx.balance_after}
                   </div>
                 </div>
               ))
@@ -1300,13 +1300,13 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
             ) : !rechargeSettings?.enabled ? (
               <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
                 <Coins size={40} className="text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 text-sm">{isEn ? 'Recharge service is temporarily unavailable.' : '鍏呭€兼湇鍔℃殏鏃朵笉鍙敤銆?}</p>
+                <p className="text-gray-500 text-sm">{isEn ? 'Recharge service is temporarily unavailable.' : '充值服务暂时不可用。'}</p>
               </div>
             ) : (
               <>
                 {rechargeSettings?.banner_image && (
                   <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                    <img src={rechargeSettings.banner_image} alt={isEn ? 'Recharge Banner' : '鍏呭€煎浼?} className="w-full h-48 object-cover" />
+                    <img src={rechargeSettings.banner_image} alt={isEn ? 'Recharge Banner' : '充值Banner'} className="w-full h-48 object-cover" />
                   </div>
                 )}
 
@@ -1316,15 +1316,15 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
                       <Coins size={16} className="text-amber-500" />
                     </div>
                     <div className="flex-1">
-                      <h4 className="font-semibold text-gray-900 mb-1">{isEn ? 'How to Recharge' : '鍏呭€兼柟寮?}</h4>
+                      <h4 className="font-semibold text-gray-900 mb-1">{isEn ? 'How to Recharge' : '充值方式'}</h4>
                       <div className="text-sm text-gray-500 leading-relaxed" dangerouslySetInnerHTML={{ __html: parseMarkdown(rechargeSettings?.description || defaultDesc) }} />
                     </div>
                   </div>
 
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                    <p className="text-xs text-amber-700 font-medium mb-1">{isEn ? 'Important Notice' : '娓╅Θ鎻愮ず'}</p>
+                    <p className="text-xs text-amber-700 font-medium mb-1">{isEn ? 'Important Notice' : '温馨提示'}</p>
                     <p className="text-xs text-amber-600">
-                      {isEn ? 'Recharge requests are processed manually by our customer service team. Please allow some time for your balance to be updated.' : '鍏呭€艰姹傜敱瀹㈡湇浜哄憳浜哄伐澶勭悊锛岃鑰愬績绛夊緟浣欓鍒拌处銆?}
+                      {isEn ? 'Recharge requests are processed manually by our customer service team. Please allow some time for your balance to be updated.' : '充值请求由客服人员人工处理，请耐心等待余额到账。'}
                     </p>
                   </div>
                 </div>
@@ -1336,6 +1336,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
     </div>
   );
 }
+
 
 
 
