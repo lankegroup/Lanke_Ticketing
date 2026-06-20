@@ -494,7 +494,7 @@ function OrdersView({
           <X size={18} />
         </button>
         <span className={`font-semibold ${isEn ? 'text-sm' : 'text-base'}`}>{isEn ? 'My Orders' : '我的订单'}</span>
-        <span className="text-sky-200 text-xs">{tickets.length} {isEn ? 'total' : '鏉¤褰?}</span>
+        <span className="text-sky-200 text-xs">{tickets.length} {isEn ? 'total' : '记录数'}</span>
         <button
           onClick={handleRefresh}
           disabled={refreshing || loading}
