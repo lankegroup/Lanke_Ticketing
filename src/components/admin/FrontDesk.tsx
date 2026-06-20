@@ -332,7 +332,7 @@ export default function FrontDesk() {
     setTicketCode(rpcResult.ticket_code || '');
 
     if (customerUser) {
-      const { data: balData } = await supabase.rpc('get_user_balance', { p_user_id: customerUser.id });
+      const { data: balData } = await supabase.rpc('get_user_lcoin_balance', { p_user_id: customerUser.id });
       setCustomerBalance(Number(balData) || 0);
     }
 
