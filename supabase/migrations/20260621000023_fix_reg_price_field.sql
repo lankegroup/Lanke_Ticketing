@@ -35,46 +35,46 @@ BEGIN
   BEGIN
     SELECT * INTO v_reg FROM registrations WHERE id = p_registration_id;
   EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE ''get_cancel_preview: Query registration failed: %'', SQLERRM;
+    RAISE NOTICE 'get_cancel_preview: Query registration failed: %', SQLERRM;
     RETURN jsonb_build_object(
-      ''success'', false, ''message'', ''查询订单失败'',
-      ''refund_fee'', 0, ''actual_refund_amount'', 0,
-      ''rmb_pay_amount'', 0, ''lcoin_pay_amount'', 0
+      'success', false, 'message', '查询订单失败',
+      'refund_fee', 0, 'actual_refund_amount', 0,
+      'rmb_pay_amount', 0, 'lcoin_pay_amount', 0
     );
   END;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object(
-      ''success'', false, ''message'', ''订单不存在'',
-      ''refund_fee'', 0, ''actual_refund_amount'', 0,
-      ''rmb_pay_amount'', 0, ''lcoin_pay_amount'', 0
+      'success', false, 'message', '订单不存在',
+      'refund_fee', 0, 'actual_refund_amount', 0,
+      'rmb_pay_amount', 0, 'lcoin_pay_amount', 0
     );
   END IF;
 
-  IF v_reg.status NOT IN (''active'') THEN
+  IF v_reg.status NOT IN ('active') THEN
     RETURN jsonb_build_object(
-      ''success'', false, ''message'', ''订单状态: '' || COALESCE(v_reg.status, ''unknown'') || ''，无法取消'',
-      ''refund_fee'', 0, ''actual_refund_amount'', 0,
-      ''rmb_pay_amount'', 0, ''lcoin_pay_amount'', 0
+      'success', false, 'message', '订单状态: ' || COALESCE(v_reg.status, 'unknown') || '，无法取消',
+      'refund_fee', 0, 'actual_refund_amount', 0,
+      'rmb_pay_amount', 0, 'lcoin_pay_amount', 0
     );
   END IF;
 
   BEGIN
     SELECT * INTO v_session FROM sessions WHERE id = v_reg.session_id;
   EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE ''get_cancel_preview: Query session failed: %'', SQLERRM;
+    RAISE NOTICE 'get_cancel_preview: Query session failed: %', SQLERRM;
     RETURN jsonb_build_object(
-      ''success'', false, ''message'', ''查询场次失败'',
-      ''refund_fee'', 0, ''actual_refund_amount'', 0,
-      ''rmb_pay_amount'', 0, ''lcoin_pay_amount'', 0
+      'success', false, 'message', '查询场次失败',
+      'refund_fee', 0, 'actual_refund_amount', 0,
+      'rmb_pay_amount', 0, 'lcoin_pay_amount', 0
     );
   END;
 
   IF NOT FOUND THEN
     RETURN jsonb_build_object(
-      ''success'', false, ''message'', ''场次不存在'',
-      ''refund_fee'', 0, ''actual_refund_amount'', 0,
-      ''rmb_pay_amount'', 0, ''lcoin_pay_amount'', 0
+      'success', false, 'message', '场次不存在',
+      'refund_fee', 0, 'actual_refund_amount', 0,
+      'rmb_pay_amount', 0, 'lcoin_pay_amount', 0
     );
   END IF;
 
@@ -82,35 +82,35 @@ BEGIN
   v_lcoin_pay_amount := COALESCE(v_reg.lcoin_amount, 0);
 
   IF v_lcoin_pay_amount > 0 AND v_rmb_pay_amount > 0 THEN
-    v_payment_type := ''mixed'';
+    v_payment_type := 'mixed';
   ELSIF v_lcoin_pay_amount > 0 THEN
-    v_payment_type := ''lcoin'';
+    v_payment_type := 'lcoin';
   ELSE
-    v_payment_type := ''rmb'';
+    v_payment_type := 'rmb';
   END IF;
 
-  IF p_role = ''user'' AND v_payment_type != ''lcoin'' THEN
+  IF p_role = 'user' AND v_payment_type != 'lcoin' THEN
     RETURN jsonb_build_object(
-      ''success'', false, ''message'',
-      CASE WHEN v_payment_type = ''rmb'' THEN ''纯人民币订单需联系管理员处理退票''
-           WHEN v_payment_type = ''mixed'' THEN ''混合支付订单需联系管理员处理退票''
-           ELSE ''暂不支持退票'' END,
-      ''payment_type'', v_payment_type,
-      ''refund_fee'', 0, ''actual_refund_amount'', 0,
-      ''rmb_pay_amount'', v_rmb_pay_amount, ''lcoin_pay_amount'', v_lcoin_pay_amount
+      'success', false, 'message',
+      CASE WHEN v_payment_type = 'rmb' THEN '纯人民币订单需联系管理员处理退票'
+           WHEN v_payment_type = 'mixed' THEN '混合支付订单需联系管理员处理退票'
+           ELSE '暂不支持退票' END,
+      'payment_type', v_payment_type,
+      'refund_fee', 0, 'actual_refund_amount', 0,
+      'rmb_pay_amount', v_rmb_pay_amount, 'lcoin_pay_amount', v_lcoin_pay_amount
     );
   END IF;
 
   v_penalty := calculate_refund_penalty(v_reg.session_id, v_now);
-  IF (v_penalty->>''success'')::BOOLEAN = false THEN
+  IF (v_penalty->>'success')::BOOLEAN = false THEN
     RETURN jsonb_build_object(
-      ''success'', false, ''message'', COALESCE(v_penalty->>''message'', ''计算退票费失败''),
-      ''refund_fee'', 0, ''actual_refund_amount'', 0,
-      ''rmb_pay_amount'', v_rmb_pay_amount, ''lcoin_pay_amount'', v_lcoin_pay_amount
+      'success', false, 'message', COALESCE(v_penalty->>'message', '计算退票费失败'),
+      'refund_fee', 0, 'actual_refund_amount', 0,
+      'rmb_pay_amount', v_rmb_pay_amount, 'lcoin_pay_amount', v_lcoin_pay_amount
     );
   END IF;
 
-  v_penalty_rate := (v_penalty->>''penalty_rate'')::DECIMAL;
+  v_penalty_rate := (v_penalty->>'penalty_rate')::DECIMAL;
   v_total_amount := v_lcoin_pay_amount + v_rmb_pay_amount;
   v_penalty_amount := v_total_amount * v_penalty_rate;
 
@@ -129,7 +129,7 @@ BEGIN
 
   BEGIN
     v_session_start_time := v_session.session_date::date + v_session.start_time::time;
-    v_stop_selling_time := v_session_start_time - INTERVAL ''1 minute'' * COALESCE(v_session.stop_selling_minutes, 0);
+    v_stop_selling_time := v_session_start_time - INTERVAL '1 minute' * COALESCE(v_session.stop_selling_minutes, 0);
   EXCEPTION WHEN OTHERS THEN
     v_session_start_time := NOW();
     v_stop_selling_time := NOW();
@@ -138,32 +138,32 @@ BEGIN
   v_can_cancel := v_now < v_stop_selling_time;
 
   RETURN jsonb_build_object(
-    ''success'', true,
-    ''registration_id'', p_registration_id,
-    ''session_name'', v_session.name,
-    ''ticket_code'', v_reg.ticket_code,
-    ''payment_type'', v_payment_type,
-    ''rmb_pay_amount'', v_rmb_pay_amount,
-    ''lcoin_pay_amount'', v_lcoin_pay_amount,
-    ''total_amount'', v_total_amount,
-    ''penalty_rate'', v_penalty_rate,
-    ''penalty_amount'', v_penalty_amount,
-    ''lcoin_exchange_rate'', v_lcoin_exchange_rate,
-    ''refund_lcoin_amount'', v_refund_lcoin_amount,
-    ''refund_rmb_amount'', v_refund_rmb_amount,
-    ''description'', COALESCE(v_penalty->>''description'', ''''),
-    ''hours_before'', (v_penalty->>''hours_before'')::DECIMAL,
-    ''can_release_seat'', v_can_cancel,
-    ''session_start_time'', v_session_start_time,
-    ''stop_selling_time'', v_stop_selling_time,
-    ''refund_fee'', v_penalty_amount,
-    ''actual_refund_amount'', v_refund_lcoin_amount + (v_refund_rmb_amount / v_lcoin_exchange_rate)
+    'success', true,
+    'registration_id', p_registration_id,
+    'session_name', v_session.name,
+    'ticket_code', v_reg.ticket_code,
+    'payment_type', v_payment_type,
+    'rmb_pay_amount', v_rmb_pay_amount,
+    'lcoin_pay_amount', v_lcoin_pay_amount,
+    'total_amount', v_total_amount,
+    'penalty_rate', v_penalty_rate,
+    'penalty_amount', v_penalty_amount,
+    'lcoin_exchange_rate', v_lcoin_exchange_rate,
+    'refund_lcoin_amount', v_refund_lcoin_amount,
+    'refund_rmb_amount', v_refund_rmb_amount,
+    'description', COALESCE(v_penalty->>'description', ''),
+    'hours_before', (v_penalty->>'hours_before')::DECIMAL,
+    'can_release_seat', v_can_cancel,
+    'session_start_time', v_session_start_time,
+    'stop_selling_time', v_stop_selling_time,
+    'refund_fee', v_penalty_amount,
+    'actual_refund_amount', v_refund_lcoin_amount + (v_refund_rmb_amount / v_lcoin_exchange_rate)
   );
 EXCEPTION WHEN OTHERS THEN
   RETURN jsonb_build_object(
-    ''success'', false, ''message'', ''获取退票信息失败: '' || SQLERRM,
-    ''refund_fee'', 0, ''actual_refund_amount'', 0,
-    ''rmb_pay_amount'', COALESCE(v_rmb_pay_amount, 0), ''lcoin_pay_amount'', COALESCE(v_lcoin_pay_amount, 0)
+    'success', false, 'message', '获取退票信息失败: ' || SQLERRM,
+    'refund_fee', 0, 'actual_refund_amount', 0,
+    'rmb_pay_amount', COALESCE(v_rmb_pay_amount, 0), 'lcoin_pay_amount', COALESCE(v_lcoin_pay_amount, 0)
   );
 END;
 $$;
@@ -173,7 +173,7 @@ GRANT EXECUTE ON FUNCTION get_cancel_preview(UUID, TEXT) TO authenticated, servi
 DROP FUNCTION IF EXISTS cancel_ticket(UUID, TEXT, UUID, DECIMAL);
 CREATE OR REPLACE FUNCTION cancel_ticket(
   p_registration_id UUID,
-  p_reason TEXT DEFAULT ''user_cancel'',
+  p_reason TEXT DEFAULT 'user_cancel',
   p_operator_id UUID DEFAULT NULL,
   p_custom_penalty_amount DECIMAL DEFAULT NULL
 )
@@ -205,44 +205,44 @@ BEGIN
   BEGIN
     SELECT * INTO v_reg FROM registrations WHERE id = p_registration_id FOR UPDATE;
   EXCEPTION WHEN OTHERS THEN
-    RETURN jsonb_build_object(''success'', false, ''message'', ''锁定订单失败: '' || SQLERRM);
+    RETURN jsonb_build_object('success', false, 'message', '锁定订单失败: ' || SQLERRM);
   END;
 
   IF NOT FOUND THEN
-    RETURN jsonb_build_object(''success'', false, ''message'', ''订单不存在'');
+    RETURN jsonb_build_object('success', false, 'message', '订单不存在');
   END IF;
 
-  IF v_reg.status NOT IN (''active'') THEN
-    RETURN jsonb_build_object(''success'', false, ''message'', ''订单状态: '' || COALESCE(v_reg.status, ''unknown'') || ''，无法取消'');
+  IF v_reg.status NOT IN ('active') THEN
+    RETURN jsonb_build_object('success', false, 'message', '订单状态: ' || COALESCE(v_reg.status, 'unknown') || '，无法取消');
   END IF;
 
   BEGIN
     SELECT * INTO v_session FROM sessions WHERE id = v_reg.session_id;
   EXCEPTION WHEN OTHERS THEN
-    RETURN jsonb_build_object(''success'', false, ''message'', ''查询场次失败: '' || SQLERRM);
+    RETURN jsonb_build_object('success', false, 'message', '查询场次失败: ' || SQLERRM);
   END;
 
   IF NOT FOUND THEN
-    RETURN jsonb_build_object(''success'', false, ''message'', ''场次不存在'');
+    RETURN jsonb_build_object('success', false, 'message', '场次不存在');
   END IF;
 
   v_rmb_pay_amount := COALESCE(v_reg.cash_amount, 0);
   v_lcoin_pay_amount := COALESCE(v_reg.lcoin_amount, 0);
 
   IF v_lcoin_pay_amount > 0 AND v_rmb_pay_amount > 0 THEN
-    v_payment_type := ''mixed'';
+    v_payment_type := 'mixed';
   ELSIF v_lcoin_pay_amount > 0 THEN
-    v_payment_type := ''lcoin'';
+    v_payment_type := 'lcoin';
   ELSE
-    v_payment_type := ''rmb'';
+    v_payment_type := 'rmb';
   END IF;
 
   v_penalty := calculate_refund_penalty(v_reg.session_id, v_now);
-  IF (v_penalty->>''success'')::BOOLEAN = false THEN
-    RETURN jsonb_build_object(''success'', false, ''message'', COALESCE(v_penalty->>''message'', ''计算退票费失败''));
+  IF (v_penalty->>'success')::BOOLEAN = false THEN
+    RETURN jsonb_build_object('success', false, 'message', COALESCE(v_penalty->>'message', '计算退票费失败'));
   END IF;
 
-  v_penalty_rate := (v_penalty->>''penalty_rate'')::DECIMAL;
+  v_penalty_rate := (v_penalty->>'penalty_rate')::DECIMAL;
   v_total_amount := v_lcoin_pay_amount + v_rmb_pay_amount;
 
   IF p_custom_penalty_amount IS NOT NULL THEN
@@ -266,7 +266,7 @@ BEGIN
 
   BEGIN
     v_session_start_time := v_session.session_date::date + v_session.start_time::time;
-    v_stop_selling_time := v_session_start_time - INTERVAL ''1 minute'' * COALESCE(v_session.stop_selling_minutes, 0);
+    v_stop_selling_time := v_session_start_time - INTERVAL '1 minute' * COALESCE(v_session.stop_selling_minutes, 0);
   EXCEPTION WHEN OTHERS THEN
     v_session_start_time := NOW();
     v_stop_selling_time := NOW();
@@ -276,7 +276,7 @@ BEGIN
 
   BEGIN
     UPDATE registrations SET
-      status = ''cancelled'',
+      status = 'cancelled',
       cancelled_at = v_now,
       cancel_reason = p_reason,
       refund_penalty_applied = v_penalty_amount,
@@ -285,7 +285,7 @@ BEGIN
       updated_at = NOW()
     WHERE id = p_registration_id;
   EXCEPTION WHEN OTHERS THEN
-    RETURN jsonb_build_object(''success'', false, ''message'', ''更新订单失败: '' || SQLERRM);
+    RETURN jsonb_build_object('success', false, 'message', '更新订单失败: ' || SQLERRM);
   END;
 
   IF v_can_release_seat THEN
@@ -300,34 +300,34 @@ BEGIN
   IF v_refund_lcoin_amount > 0 AND v_reg.user_id IS NOT NULL THEN
     BEGIN
       PERFORM create_lcoin_transaction(
-        v_reg.user_id, ''refund'', v_refund_lcoin_amount,
+        v_reg.user_id, 'refund', v_refund_lcoin_amount,
         v_reg.id, v_reg.session_id, v_reg.ticket_type,
-        NULL, 0, ''system'', p_operator_id,
-        CONCAT(''退票退款：'', v_session.name, ''（扣'', v_penalty_amount, ''LC）''),
-        ''lcoin''
+        NULL, 0, 'system', p_operator_id,
+        CONCAT('退票退款：', v_session.name, '（扣', v_penalty_amount, 'LC）'),
+        'lcoin'
       );
     EXCEPTION WHEN OTHERS THEN
-      RETURN jsonb_build_object(''success'', false, ''message'', ''退款转账失败: '' || SQLERRM);
+      RETURN jsonb_build_object('success', false, 'message', '退款转账失败: ' || SQLERRM);
     END;
   END IF;
 
   RETURN jsonb_build_object(
-    ''success'', true,
-    ''registration_id'', p_registration_id,
-    ''payment_type'', v_payment_type,
-    ''penalty_amount'', v_penalty_amount,
-    ''refunded_lcoin'', v_refund_lcoin_amount,
-    ''refunded_rmb'', v_refund_rmb_amount,
-    ''seat_released'', v_can_release_seat,
-    ''message'', ''退款已完成''
+    'success', true,
+    'registration_id', p_registration_id,
+    'payment_type', v_payment_type,
+    'penalty_amount', v_penalty_amount,
+    'refunded_lcoin', v_refund_lcoin_amount,
+    'refunded_rmb', v_refund_rmb_amount,
+    'seat_released', v_can_release_seat,
+    'message', '退款已完成'
   );
 EXCEPTION WHEN OTHERS THEN
-  RETURN jsonb_build_object(''success'', false, ''message'', ''取消订单失败: '' || SQLERRM);
+  RETURN jsonb_build_object('success', false, 'message', '取消订单失败: ' || SQLERRM);
 END;
 $$;
 
 GRANT EXECUTE ON FUNCTION cancel_ticket(UUID, TEXT, UUID, DECIMAL) TO authenticated, service_role;
 
-NOTIFY pgrst, ''reload schema'';
+NOTIFY pgrst, 'reload schema';
 
-SELECT ''Fixed: removed v_reg.price field reference'' as result;
+SELECT 'Fixed: removed v_reg.price field reference' as result;
