@@ -222,7 +222,7 @@ export default function MyPage() {
                 {isVip && vipExpireAt && (
                   <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
                     <Crown size={10} />
-                    {isEn ? 'Valid until' : '鏈夋晥鏈熻嚦'}锛歿new Date(vipExpireAt).toLocaleDateString()}
+                    {isEn ? 'Valid until' : '有效期至'}: {new Date(vipExpireAt).toLocaleDateString()}
                   </p>
                 )}
               </div>
@@ -289,8 +289,8 @@ export default function MyPage() {
               <Coins size={20} className="text-white" />
             </div>
             <div className="flex-1">
-              <p className="font-semibold text-white">{isEn ? 'Lanke Coins Balance' : '鍏板厠甯佷綑棰?}</p>
-              <p className="text-white/80 text-sm">{balance} {isEn ? 'Lanke Coins' : '鍏板厠甯?}</p>
+              <p className="font-semibold text-white">{isEn ? 'Lanke Coins Balance' : '兰克币余额'}</p>
+              <p className="text-white/80 text-sm">{balance} {isEn ? 'Lanke Coins' : '兰克币'}</p>
             </div>
             <ChevronRight size={16} className="text-white/70" />
           </button>
@@ -1155,7 +1155,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
 
   const formatAmount = (direction: string, amount: string | number) => {
     const prefix = direction === 'in' ? '+' : '-';
-    return `${prefix}${amount} ${isEn ? 'LC' : '鍏板厠甯?}`;
+    return `${prefix}${amount} ${isEn ? 'LC' : '兰克币}`;
   };
 
   function parseMarkdown(text: string): string {
@@ -1183,7 +1183,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
         <button onClick={onBack} className="p-1.5 hover:bg-white/20 rounded-lg transition-colors">
           <X size={18} />
         </button>
-        <span className="font-semibold">{isEn ? 'Lanke Coins' : '鍏板厠甯佷綑棰?}</span>
+        <span className="font-semibold">{isEn ? 'Lanke Coins' : '兰克币余额'}</span>
       </div>
 
       <div className="p-4 space-y-4">
@@ -1191,7 +1191,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
         <div className="bg-gradient-to-br from-amber-500 to-amber-400 rounded-2xl p-6 text-white text-center">
           <p className="text-white/80 text-sm mb-1">{isEn ? 'Current Balance' : '褰撳墠浣欓'}</p>
           <p className="text-4xl font-bold">{balance}</p>
-          <p className="text-white/70 text-xs mt-1">{isEn ? 'Lanke Coins' : '鍏板厠甯?}</p>
+          <p className="text-white/70 text-xs mt-1">{isEn ? 'Lanke Coins' : '兰克币}</p>
         </div>
 
         {/* Tabs */}
@@ -1237,7 +1237,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
                 <div key={pkg.id} className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <h4 className="font-semibold text-gray-900">{isEn ? (pkg.name_en || pkg.name) : pkg.name}</h4>
-                    <span className="text-lg font-bold text-amber-500">{pkg.lcoin_amount} {isEn ? 'LC' : '鍏板厠甯?}</span>
+                    <span className="text-lg font-bold text-amber-500">{pkg.lcoin_amount} {isEn ? 'LC' : '兰克币}</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-500">{isEn ? 'Price' : '浠锋牸'}锛?span className="font-medium text-gray-900">{pkg.price}</span> {isEn ? 'RMB' : '鍏?}</span>
@@ -1336,5 +1336,6 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
     </div>
   );
 }
+
 
 
