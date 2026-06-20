@@ -319,8 +319,8 @@ export default function MyPage() {
               <Headphones size={20} className="text-sky-500" />
             </div>
             <div className="flex-1">
-              <p className={`font-semibold text-gray-900 ${isEn ? 'text-sm' : 'text-base'}`}>{isEn ? 'Live Support' : '鍦ㄧ嚎瀹㈡湇'}</p>
-              <p className={`text-gray-400 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'Chat with our support team' : '涓庡鏈嶄汉鍛樺嵆鏃舵矡閫?}</p>
+              <p className={`font-semibold text-gray-900 ${isEn ? 'text-sm' : 'text-base'}`}>{isEn ? 'Live Support' : '在线客服'}</p>
+              <p className={`text-gray-400 ${isEn ? 'text-xs' : 'text-sm'}`}>{isEn ? 'Chat with our support team' : '与客服人员即时沟通'}</p>
             </div>
             <ChevronRight size={16} className="text-gray-300" />
           </button>
@@ -1336,6 +1336,8 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
     </div>
   );
 }
+
+
 
 
 
