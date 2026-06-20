@@ -541,7 +541,7 @@ function OrdersView({
                     <p className={`font-semibold text-gray-900 ${isEn ? 'text-xs' : 'text-sm'}`}>{ticket.name}</p>
                     <p className={`text-gray-500 truncate ${isEn ? 'text-[10px]' : 'text-xs'}`}>{sessionLabel}</p>
                     {(ticket as any).seats?.seat_name && (
-                      <p className="text-sky-600 text-xs font-medium mt-0.5">{isEn ? 'Seat: ' : '座位：}{formatSeatName((ticket as any).seats.seat_name, isEn)}</p>
+                      <p className="text-sky-600 text-xs font-medium mt-0.5">{isEn ? 'Seat: ' : '座位：'}{formatSeatName((ticket as any).seats.seat_name, isEn)}</p>
                     )}
                     <p className="font-mono text-sky-600 text-xs mt-0.5">{ticket.ticket_code}</p>
                   </div>
@@ -744,7 +744,7 @@ function ChangeSeatModal({
         <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 flex-shrink-0">
           <div>
             <h3 className="font-bold text-gray-900 text-base">{isEn ? 'Change Seat' : '更换座位'}</h3>
-            <p className="text-xs text-gray-400">{currentSeatName ? `${isEn ? 'Current:' : '当前：}${currentSeatName}` : (isEn ? 'No current seat' : '暂无座位')}</p>
+            <p className="text-xs text-gray-400">{currentSeatName ? `${isEn ? 'Current:' : '当前：'}${currentSeatName}` : (isEn ? 'No current seat' : '暂无座位')}</p>
           </div>
           <button onClick={handleClose} className="p-1.5 hover:bg-gray-100 rounded-full"><X size={18} /></button>
         </div>
@@ -761,7 +761,7 @@ function ChangeSeatModal({
               {ticket.reschedule_history.map((h, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs text-gray-600">
                   <span>{h.from_seat}</span>
-                  <span className="text-gray-400">鈫?/span>
+                  <span className="text-gray-400">→</span>
                   <span>{h.to_seat}</span>
                   <span className="text-gray-400 ml-auto">{new Date(h.changed_at).toLocaleDateString()}</span>
                 </div>
@@ -789,7 +789,7 @@ function ChangeSeatModal({
 
           {selectedSeat && (
             <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2.5">
-              <p className="text-xs text-sky-600">{isEn ? 'New seat' : '新座位}</p>
+              <p className="text-xs text-sky-600">{isEn ? 'New seat' : '新座位'}</p>
               <p className="font-bold text-sky-700">{selectedSeat.seat_name}</p>
             </div>
           )}
@@ -1155,7 +1155,7 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
 
   const formatAmount = (direction: string, amount: string | number) => {
     const prefix = direction === 'in' ? '+' : '-';
-    return `${prefix}${amount} ${isEn ? 'LC' : '兰克币}`;
+    return `${prefix}${amount} ${isEn ? 'LC' : '兰克币'}`;
   };
 
   function parseMarkdown(text: string): string {
