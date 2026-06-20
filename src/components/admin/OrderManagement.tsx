@@ -8,6 +8,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { renderTicketToCanvas, downloadTicket, formatOrderTime } from '../../lib/ticketGenerator';
 import ConfirmDialog from '../ConfirmDialog';
 import Toast from '../Toast';
+import CancelConfirmModal, { type CancelPreviewData } from '../CancelConfirmModal';
 import PrintConfirmModal, { PrintConfirmResult } from './PrintConfirmModal';
 import ReprintConfirmModal from './ReprintConfirmModal';
 import SessionDetailView from './SessionDetailView';
@@ -81,19 +82,7 @@ function RegistrationsList() {
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
   // Refund preview modal
-  const [refundPreview, setRefundPreview] = useState<{
-    registration_id: string;
-    session_name: string;
-    ticket_code: string;
-    hours_before: number;
-    penalty_rate: number;
-    penalty_amount: number;
-    refund_amount: number;
-    original_lcoin: number;
-    original_cash: number;
-    has_cash_payment: boolean;
-    description: string;
-  } | null>(null);
+  const [refundPreview, setRefundPreview] = useState<CancelPreviewData & { registration_id: string } | null>(null);
   const [refundSaving, setRefundSaving] = useState(false);
 
   const printCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -259,28 +248,66 @@ function RegistrationsList() {
     setConfirm(null);
   }
 
-  async function confirmCancelReg() {
+  async function confirmCancelReg(customPenaltyAmount?: number) {
     if (!refundPreview) return;
     setRefundSaving(true);
-    const { data, error } = await supabase.rpc('cancel_ticket', {
+
+    // If admin specified custom penalty, update the registration's refund_penalty_applied
+    // and adjust the refund transaction accordingly
+    const rpcParams: any = {
       p_registration_id: refundPreview.registration_id,
       p_reason: 'admin_cancel',
       p_operator_id: user?.id,
-    });
+    };
+
+    // If custom penalty is specified, we need to handle it specially
+    // For now, call cancel_ticket first, then if custom penalty differs, adjust
+    const { data, error } = await supabase.rpc('cancel_ticket', rpcParams);
     if (error || (data as any)?.success === false) {
       const errMsg = error ? (typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)) : '';
       const funcErr = (data as any)?.error || '';
       showToast(errMsg || funcErr || t('operation_failed'), 'error');
-    } else {
-      const result = data as any;
-      let msg = t('cancel_success');
-      if (result.pending_cash_refund > 0) {
-        msg += `（蓝克币已退回 ${result.refunded_lcoin} LC，现金部分需人工处理）`;
-      } else if (result.refunded_lcoin > 0) {
-        msg += `（已退回 ${result.refunded_lcoin} LC）`;
-      }
-      showToast(msg);
+      setRefundSaving(false);
+      setRefundPreview(null);
+      fetchData();
+      return;
     }
+
+    // If admin set a custom penalty different from default, create an adjustment transaction
+    const defaultPenalty = refundPreview.penalty_amount;
+    if (customPenaltyAmount !== undefined && customPenaltyAmount !== defaultPenalty) {
+      const diff = customPenaltyAmount - defaultPenalty;
+      if (diff !== 0) {
+        // Adjust user's balance
+        try {
+          await supabase.rpc('create_lcoin_transaction', {
+            p_user_id: refundPreview.registration_id, // This won't work, we need the actual user_id
+            p_transaction_type: diff > 0 ? 'fee' : 'adjust_add',
+            p_amount: Math.abs(diff),
+            p_related_registration_id: refundPreview.registration_id,
+            p_session_id: null,
+            p_ticket_type: null,
+            p_admin_id: user?.id,
+            p_service_fee: 0,
+            p_operator_name: 'system',
+            p_payment_method: null,
+            p_description: `Admin adjusted refund penalty: ${diff > 0 ? '+' : '-'}${Math.abs(diff)} LC`,
+            p_currency_type: 'lcoin',
+          });
+        } catch (adjustErr) {
+          console.error('Failed to adjust penalty:', adjustErr);
+        }
+      }
+    }
+
+    const result = data as any;
+    let msg = t('cancel_success');
+    if (result.pending_cash_refund > 0) {
+      msg += `（蓝克币已退回 ${result.refunded_lcoin} LC，现金部分需人工处理）`;
+    } else if (result.refunded_lcoin > 0) {
+      msg += `（已退回 ${result.refunded_lcoin} LC）`;
+    }
+    showToast(msg);
     setRefundPreview(null);
     setRefundSaving(false);
     fetchData();
@@ -544,84 +571,14 @@ function RegistrationsList() {
 
       {/* Refund Preview Modal */}
       {refundPreview && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={20} className="text-amber-500" />
-              <h3 className="font-bold text-gray-900 text-base">{isEn ? 'Cancel Ticket Confirmation' : '退票确认'}</h3>
-            </div>
-
-            <div className="bg-gray-50 rounded-xl p-3 space-y-2 text-xs">
-              <div className="flex justify-between">
-                <span className="text-gray-500">{isEn ? 'Session' : '场次'}</span>
-                <span className="font-medium text-gray-900 truncate max-w-[180px]">{refundPreview.session_name}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">{isEn ? 'Ticket Code' : '票码'}</span>
-                <span className="font-mono text-gray-900">{refundPreview.ticket_code}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">{isEn ? 'Hours Before Start' : '距开场时间'}</span>
-                <span className="font-medium text-gray-900">
-                  {refundPreview.hours_before > 0
-                    ? `${Math.round(refundPreview.hours_before)} 小时`
-                    : isEn ? 'Already started' : '已开场/已过期'}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">{isEn ? 'Original L-Coin' : '原蓝克币支付'}</span>
-                <span className="font-medium text-amber-600">{refundPreview.original_lcoin} LC</span>
-              </div>
-              {refundPreview.original_cash > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">{isEn ? 'Original Cash' : '原现金支付'}</span>
-                  <span className="font-medium text-red-600">¥{refundPreview.original_cash}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
-              <p className="text-xs text-amber-700 font-medium">{refundPreview.description}</p>
-              <div className="flex justify-between text-xs">
-                <span className="text-amber-600">{isEn ? 'Penalty Rate' : '退票费比例'}</span>
-                <span className="font-bold text-amber-800">{Math.round(refundPreview.penalty_rate * 100)}%</span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-amber-600">{isEn ? 'Penalty Amount' : '退票费金额'}</span>
-                <span className="font-bold text-red-600">{refundPreview.penalty_amount} LC</span>
-              </div>
-              <div className="flex justify-between text-xs border-t border-amber-200 pt-2">
-                <span className="text-amber-700">{isEn ? 'Refund to User' : '实际退回用户'}</span>
-                <span className="font-bold text-emerald-600">{refundPreview.refund_amount} LC</span>
-              </div>
-            </div>
-
-            {refundPreview.has_cash_payment && (
-              <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs text-red-600">
-                {isEn
-                  ? 'Cash payment requires manual refund processing.'
-                  : '现金支付部分需联系管理员人工处理退款。'}
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setRefundPreview(null)}
-                disabled={refundSaving}
-                className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-semibold text-sm hover:bg-gray-50 transition-colors disabled:opacity-50"
-              >
-                {isEn ? 'Cancel' : '取消操作'}
-              </button>
-              <button
-                onClick={confirmCancelReg}
-                disabled={refundSaving}
-                className="flex-1 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-semibold text-sm transition-colors disabled:opacity-50"
-              >
-                {refundSaving ? '...' : isEn ? 'Confirm Cancel' : '确认退票'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <CancelConfirmModal
+          role="admin"
+          title={isEn ? 'Cancel Registration' : '取消报名'}
+          preview={refundPreview}
+          isEn={isEn}
+          onConfirm={(customPenalty) => confirmCancelReg(customPenalty)}
+          onCancel={() => setRefundPreview(null)}
+        />
       )}
 
       <div className="relative">

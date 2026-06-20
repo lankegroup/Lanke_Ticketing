@@ -7,6 +7,7 @@ import QRCodeView from './QRCodeView';
 import LoginModal from './LoginModal';
 import Toast from '../Toast';
 import ConfirmDialog from '../ConfirmDialog';
+import CancelConfirmModal, { type CancelPreviewData } from '../CancelConfirmModal';
 import ChatView from './ChatView';
 import SeatMap from '../SeatMap';
 
@@ -356,9 +357,10 @@ function OrdersView({
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
-  const [cancelPreview, setCancelPreview] = useState<{ penalty_amount: number; refund_amount: number; description: string; original_lcoin: number } | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<CancelPreviewData | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [localToast, setLocalToast] = useState<{ msg: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [changeSeatTicket, setChangeSeatTicket] = useState<Registration | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -366,6 +368,11 @@ function OrdersView({
     setRefreshing(true);
     await onRefresh();
     setRefreshing(false);
+  }
+
+  function showLocalToast(msg: string, type: 'success' | 'error' | 'warning' = 'warning') {
+    setLocalToast({ msg, type });
+    setTimeout(() => setLocalToast(null), 3500);
   }
 
   const statusConfig: Record<string, { color: string; bg: string }> = {
@@ -388,9 +395,9 @@ function OrdersView({
     setDeleting(false);
     setConfirmDelete(null);
     if (error || (data as any)?.success === false) {
-      showToast(t('operation_failed'), 'error');
+      showLocalToast(t('operation_failed'), 'error');
     } else {
-      showToast(isEn ? 'Order deleted' : '订单已删除', 'success');
+      showLocalToast(isEn ? 'Order deleted' : '订单已删除', 'success');
       onRefresh();
     }
   }
@@ -409,7 +416,7 @@ function OrdersView({
     if (error || (data as any)?.success === false) {
       console.log('Cancel failed:', { error, data });
       const msg = (data as any)?.message || (data as any)?.error || t('operation_failed');
-      showToast(msg, 'error');
+      showLocalToast(msg, 'error');
     } else {
       const result = data as any;
       const penaltyMsg = result.penalty_amount && result.penalty_amount > 0
@@ -419,7 +426,7 @@ function OrdersView({
         : isEn 
           ? 'Booking cancelled, full refund processed'
           : '订单已取消，全额退款已处理';
-      showToast(penaltyMsg, 'success');
+      showLocalToast(penaltyMsg, 'success');
       onRefresh();
     }
   }
@@ -428,14 +435,20 @@ function OrdersView({
     const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
     if (error || (data as any)?.success === false) {
       console.log('get_cancel_preview failed:', { error, data });
-      showToast(isEn ? 'Failed to get refund info' : '获取退票信息失败', 'error');
+      showLocalToast(isEn ? 'Failed to get refund info' : '获取退票信息失败', 'error');
     } else {
       const preview = data as any;
       setCancelPreview({
+        original_lcoin: preview.original_lcoin || 0,
+        original_cash: preview.original_cash || 0,
+        penalty_rate: preview.penalty_rate || 0,
         penalty_amount: preview.penalty_amount || 0,
         refund_amount: preview.refund_amount || 0,
         description: preview.description || '',
-        original_lcoin: preview.original_lcoin || 0,
+        hours_before: preview.hours_before || 0,
+        has_cash_payment: preview.has_cash_payment || false,
+        session_name: preview.session_name || '',
+        ticket_code: preview.ticket_code || '',
       });
       setConfirmCancel(id);
     }
@@ -450,7 +463,7 @@ function OrdersView({
           onClose={() => setChangeSeatTicket(null)}
           onSuccess={() => {
             setChangeSeatTicket(null);
-            showToast(isEn ? 'Seat changed successfully' : '换座成功', 'success');
+            showLocalToast(isEn ? 'Seat changed successfully' : '换座成功', 'success');
             onRefresh();
           }}
         />
@@ -465,16 +478,12 @@ function OrdersView({
           onCancel={() => setConfirmDelete(null)}
         />
       )}
+      {localToast && <Toast message={localToast.msg} type={localToast.type} onClose={() => setLocalToast(null)} />}
       {confirmCancel && (
-        <ConfirmDialog
-          title={isEn ? 'Cancel Booking' : '取消订单'}
-          message={cancelPreview && cancelPreview.penalty_amount > 0
-            ? (isEn
-              ? `This booking will incur a cancellation penalty of ${cancelPreview.penalty_amount} LC. Original: ${cancelPreview.original_lcoin} LC, Refund: ${cancelPreview.refund_amount} LC. ${cancelPreview.description}`
-              : `取消此订单将扣除退票费 ${cancelPreview.penalty_amount} 兰克币。原价：${cancelPreview.original_lcoin} 兰克币，退款：${cancelPreview.refund_amount} 兰克币。${cancelPreview.description}`)
-            : (isEn
-              ? 'Are you sure you want to cancel this booking? Full refund will be processed.'
-              : '确认取消该订单？将全额退款。')}
+        <CancelConfirmModal
+          role="user"
+          preview={cancelPreview}
+          isEn={isEn}
           onConfirm={() => handleCancel(confirmCancel)}
           onCancel={() => { setConfirmCancel(null); setCancelPreview(null); }}
         />
@@ -1329,3 +1338,5 @@ function BalanceView({ balance, onBack }: { balance: string; onBack: () => void 
 }
 
 
+/ /   A u t o - t r i g g e r   d e p l o y m e n t  
+ 

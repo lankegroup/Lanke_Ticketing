@@ -7,6 +7,7 @@ import QRCodeView from './QRCodeView';
 import LoginModal from './LoginModal';
 import Toast from '../Toast';
 import ConfirmDialog from '../ConfirmDialog';
+import CancelConfirmModal, { type CancelPreviewData } from '../CancelConfirmModal';
 import ChatView from './ChatView';
 import SeatMap from '../SeatMap';
 
@@ -21,8 +22,6 @@ export default function MyPage() {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [subView, setSubView] = useState<SubView>('main');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'warning' } | null>(null);
-  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
-  const [cancelPreview, setCancelPreview] = useState<{ penalty_amount: number; refund_amount: number; description: string; original_lcoin: number } | null>(null);
 
   const isEn = i18n.language === 'en';
 
@@ -78,48 +77,6 @@ export default function MyPage() {
     setLoading(false);
   }
 
-  async function handleCancelBooking(id: string) {
-    const { data, error } = await supabase.rpc('cancel_ticket', {
-      p_registration_id: id,
-      p_reason: 'user_cancel',
-      p_operator_id: user?.id,
-    });
-    setConfirmCancel(null);
-    setCancelPreview(null);
-    if (error || (data as any)?.success === false) {
-      const msg = (data as any)?.message || (data as any)?.error || t('operation_failed');
-      showToast(msg, 'error');
-    } else {
-      const result = data as any;
-      const penaltyMsg = result.penalty_amount && result.penalty_amount > 0
-        ? isEn 
-          ? `Booking cancelled. Penalty: ${result.penalty_amount} LC, Refunded: ${result.refunded_lcoin} LC`
-          : `订单已取消。退票费：${result.penalty_amount} 兰克币，退回：${result.refunded_lcoin} 兰克币`
-        : isEn 
-          ? 'Booking cancelled, full refund processed'
-          : '订单已取消，全额退款已处理';
-      showToast(penaltyMsg, 'success');
-      fetchTickets();
-    }
-  }
-
-  async function handleCancelPreview(id: string) {
-    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
-    if (error || (data as any)?.success === false) {
-      console.log('get_cancel_preview failed:', { error, data });
-      showToast(isEn ? 'Failed to get refund info' : '获取退票信息失败', 'error');
-    } else {
-      const preview = data as any;
-      setCancelPreview({
-        penalty_amount: preview.penalty_amount || 0,
-        refund_amount: preview.refund_amount || 0,
-        description: preview.description || '',
-        original_lcoin: preview.original_lcoin || 0,
-      });
-      setConfirmCancel(id);
-    }
-  }
-
   // ── Sub-views ──────────────────────────────────────────────────────────────
 
   if (selectedTicket) {
@@ -141,10 +98,8 @@ export default function MyPage() {
         loading={loading}
         isEn={isEn}
         onBack={() => setSubView('main')}
-        onCancelTicket={(id) => handleCancelPreview(id)}
         onViewTicket={(tk) => setSelectedTicket(tk)}
         onRefresh={fetchTickets}
-        showToast={showToast}
       />
     );
   }
@@ -169,21 +124,6 @@ export default function MyPage() {
     <div className="p-4 space-y-4">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <LoginModal open={showLoginModal} onClose={() => setShowLoginModal(false)} />
-      {confirmCancel && (
-        <ConfirmDialog
-          title={t('cancel_booking')}
-          message={cancelPreview && cancelPreview.penalty_amount > 0
-            ? (isEn
-              ? `This booking will incur a cancellation penalty of ${cancelPreview.penalty_amount} LC. Original: ${cancelPreview.original_lcoin} LC, Refund: ${cancelPreview.refund_amount} LC. ${cancelPreview.description}`
-              : `取消此订单将扣除退票费 ${cancelPreview.penalty_amount} 兰克币。原价：${cancelPreview.original_lcoin} 兰克币，退款：${cancelPreview.refund_amount} 兰克币。${cancelPreview.description}`)
-            : (isEn
-              ? 'Are you sure you want to cancel this booking? Full refund will be processed.'
-              : '确认取消该订单？将全额退款。')}
-          onConfirm={() => handleCancelBooking(confirmCancel)}
-          onCancel={() => { setConfirmCancel(null); setCancelPreview(null); }}
-        />
-      )}
-
       {/* User card */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         {user ? (
@@ -301,27 +241,84 @@ export default function MyPage() {
 // ─── OrdersView ────────────────────────────────────────────────────────────────
 
 function OrdersView({
-  tickets, loading, isEn, onBack, onCancelTicket, onViewTicket, onRefresh, showToast,
+  tickets, loading, isEn, onBack, onViewTicket, onRefresh,
 }: {
   tickets: Registration[];
   loading: boolean;
   isEn: boolean;
   onBack: () => void;
-  onCancelTicket: (id: string) => void;
   onViewTicket: (t: Registration) => void;
   onRefresh: () => void;
-  showToast: (msg: string, type: 'success' | 'error' | 'warning') => void;
 }) {
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [changeSeatTicket, setChangeSeatTicket] = useState<Registration | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [localToast, setLocalToast] = useState<{ msg: string; type: 'success' | 'error' | 'warning' } | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<CancelPreviewData | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   async function handleRefresh() {
     setRefreshing(true);
     await onRefresh();
     setRefreshing(false);
+  }
+
+  function showLocalToast(msg: string, type: 'success' | 'error' | 'warning' = 'warning') {
+    setLocalToast({ msg, type });
+    setTimeout(() => setLocalToast(null), 3500);
+  }
+
+  async function handleCancel(id: string) {
+    setCancelling(true);
+    const { data, error } = await supabase.rpc('cancel_ticket', {
+      p_registration_id: id,
+      p_reason: 'user_cancel',
+      p_operator_id: null,
+    });
+    setCancelling(false);
+    setConfirmCancel(null);
+    setCancelPreview(null);
+    if (error || (data as any)?.success === false) {
+      const msg = (data as any)?.message || (data as any)?.error || t('operation_failed');
+      showLocalToast(msg, 'error');
+    } else {
+      const result = data as any;
+      const penaltyMsg = result.penalty_amount && result.penalty_amount > 0
+        ? isEn 
+          ? `Booking cancelled. Penalty: ${result.penalty_amount} LC, Refunded: ${result.refunded_lcoin} LC`
+          : `订单已取消。退票费：${result.penalty_amount} 兰克币，退回：${result.refunded_lcoin} 兰克币`
+        : isEn 
+          ? 'Booking cancelled, full refund processed'
+          : '订单已取消，全额退款已处理';
+      showLocalToast(penaltyMsg, 'success');
+      onRefresh();
+    }
+  }
+
+  async function handleCancelPreview(id: string) {
+    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
+    if (error || (data as any)?.success === false) {
+      console.log('get_cancel_preview failed:', { error, data });
+      showLocalToast(isEn ? 'Failed to get refund info' : '获取退票信息失败', 'error');
+    } else {
+      const preview = data as any;
+      setCancelPreview({
+        original_lcoin: preview.original_lcoin || 0,
+        original_cash: preview.original_cash || 0,
+        penalty_rate: preview.penalty_rate || 0,
+        penalty_amount: preview.penalty_amount || 0,
+        refund_amount: preview.refund_amount || 0,
+        description: preview.description || '',
+        hours_before: preview.hours_before || 0,
+        has_cash_payment: preview.has_cash_payment || false,
+        session_name: preview.session_name || '',
+        ticket_code: preview.ticket_code || '',
+      });
+      setConfirmCancel(id);
+    }
   }
 
   const statusConfig: Record<string, { color: string; bg: string }> = {
@@ -343,9 +340,9 @@ function OrdersView({
     setDeleting(false);
     setConfirmDelete(null);
     if (error || (data as any)?.success === false) {
-      showToast(t('operation_failed'), 'error');
+      showLocalToast(t('operation_failed'), 'error');
     } else {
-      showToast(isEn ? 'Order deleted' : '订单已删除', 'success');
+      showLocalToast(isEn ? 'Order deleted' : '订单已删除', 'success');
       onRefresh();
     }
   }
@@ -359,11 +356,12 @@ function OrdersView({
           onClose={() => setChangeSeatTicket(null)}
           onSuccess={() => {
             setChangeSeatTicket(null);
-            showToast(isEn ? 'Seat changed successfully' : '换座成功', 'success');
+            showLocalToast(isEn ? 'Seat changed successfully' : '换座成功', 'success');
             onRefresh();
           }}
         />
       )}
+      {localToast && <Toast message={localToast.msg} type={localToast.type} onClose={() => setLocalToast(null)} />}
       {confirmDelete && (
         <ConfirmDialog
           title={isEn ? 'Delete Order' : '删除订单'}
@@ -372,6 +370,15 @@ function OrdersView({
             : '确定要删除此订单吗？删除后将无法恢复。'}
           onConfirm={() => handleDelete(confirmDelete)}
           onCancel={() => setConfirmDelete(null)}
+        />
+      )}
+      {confirmCancel && (
+        <CancelConfirmModal
+          role="user"
+          preview={cancelPreview}
+          isEn={isEn}
+          onConfirm={() => handleCancel(confirmCancel)}
+          onCancel={() => { setConfirmCancel(null); setCancelPreview(null); }}
         />
       )}
 
@@ -455,8 +462,9 @@ function OrdersView({
                     )}
                     {isActive && (
                       <button
-                        onClick={() => onCancelTicket(ticket.id)}
-                        className="flex-1 text-xs text-red-500 border border-red-200 py-1.5 rounded-lg hover:bg-red-50 transition-colors text-center"
+                        onClick={() => handleCancelPreview(ticket.id)}
+                        disabled={cancelling}
+                        className="flex-1 text-xs text-red-500 border border-red-200 py-1.5 rounded-lg hover:bg-red-50 transition-colors text-center disabled:opacity-50"
                       >
                         {t('cancel_booking')}
                       </button>

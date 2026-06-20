@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom';
+
 type Props = {
   message: string;
   type?: 'success' | 'error' | 'warning' | 'info';
@@ -12,12 +14,13 @@ const colors = {
 };
 
 export default function Toast({ message, type = 'info', onClose }: Props) {
-  return (
-    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-sm w-[90vw] px-4 py-3 rounded-xl border shadow-lg flex items-center gap-2 text-sm font-medium animate-fade-in ${colors[type]}`}>
+  return createPortal(
+    <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[9999] max-w-sm w-[90vw] px-4 py-3 rounded-xl border shadow-lg flex items-center gap-2 text-sm font-medium animate-fade-in ${colors[type]}`}>
       <span className="flex-1">{message}</span>
       {onClose && (
         <button onClick={onClose} className="ml-2 opacity-60 hover:opacity-100 text-lg leading-none">&times;</button>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
