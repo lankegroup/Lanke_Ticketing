@@ -1285,7 +1285,7 @@ function SeatSelectionView({
 
     setLocking(true);
     try {
-      const { data, error } = await supabase.rpc('lock_seat', { p_seat_id: seat.id });
+      const { data, error } = await supabase.rpc('lock_seat', { p_seat_id: seat.id, p_user_id: userId });
 
       if (error || !data?.success) {
         const reason = data?.reason;
