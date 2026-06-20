@@ -356,6 +356,7 @@ function OrdersView({
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<{ penalty_amount: number; refund_amount: number; description: string; original_lcoin: number } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [changeSeatTicket, setChangeSeatTicket] = useState<Registration | null>(null);
@@ -399,16 +400,44 @@ function OrdersView({
     console.log('handleCancel called with id:', id);
     const { data, error } = await supabase.rpc('cancel_ticket', {
       p_registration_id: id,
-      p_user_id: null,
+      p_reason: 'user_cancel',
+      p_operator_id: null,
     });
     setCancelling(false);
     setConfirmCancel(null);
+    setCancelPreview(null);
     if (error || (data as any)?.success === false) {
       console.log('Cancel failed:', { error, data });
-      showToast(t('operation_failed'), 'error');
+      const msg = (data as any)?.message || (data as any)?.error || t('operation_failed');
+      showToast(msg, 'error');
     } else {
-      showToast(isEn ? 'Booking cancelled' : '订单已取消', 'success');
+      const result = data as any;
+      const penaltyMsg = result.penalty_amount && result.penalty_amount > 0
+        ? isEn 
+          ? `Booking cancelled. Penalty: ${result.penalty_amount} LC, Refunded: ${result.refunded_lcoin} LC`
+          : `订单已取消。退票费：${result.penalty_amount} 兰克币，退回：${result.refunded_lcoin} 兰克币`
+        : isEn 
+          ? 'Booking cancelled, full refund processed'
+          : '订单已取消，全额退款已处理';
+      showToast(penaltyMsg, 'success');
       onRefresh();
+    }
+  }
+
+  async function handleCancelPreview(id: string) {
+    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
+    if (error || (data as any)?.success === false) {
+      console.log('get_cancel_preview failed:', { error, data });
+      showToast(isEn ? 'Failed to get refund info' : '获取退票信息失败', 'error');
+    } else {
+      const preview = data as any;
+      setCancelPreview({
+        penalty_amount: preview.penalty_amount || 0,
+        refund_amount: preview.refund_amount || 0,
+        description: preview.description || '',
+        original_lcoin: preview.original_lcoin || 0,
+      });
+      setConfirmCancel(id);
     }
   }
 
@@ -439,11 +468,15 @@ function OrdersView({
       {confirmCancel && (
         <ConfirmDialog
           title={isEn ? 'Cancel Booking' : '取消订单'}
-          message={isEn
-            ? 'Are you sure you want to cancel this booking? Inventory will be returned.'
-            : '确认取消该订单？库存将返还。'}
+          message={cancelPreview && cancelPreview.penalty_amount > 0
+            ? (isEn
+              ? `This booking will incur a cancellation penalty of ${cancelPreview.penalty_amount} LC. Original: ${cancelPreview.original_lcoin} LC, Refund: ${cancelPreview.refund_amount} LC. ${cancelPreview.description}`
+              : `取消此订单将扣除退票费 ${cancelPreview.penalty_amount} 兰克币。原价：${cancelPreview.original_lcoin} 兰克币，退款：${cancelPreview.refund_amount} 兰克币。${cancelPreview.description}`)
+            : (isEn
+              ? 'Are you sure you want to cancel this booking? Full refund will be processed.'
+              : '确认取消该订单？将全额退款。')}
           onConfirm={() => handleCancel(confirmCancel)}
-          onCancel={() => setConfirmCancel(null)}
+          onCancel={() => { setConfirmCancel(null); setCancelPreview(null); }}
         />
       )}
 
@@ -527,7 +560,7 @@ function OrdersView({
                     )}
                     {isActive && (
                       <button
-                        onClick={() => setConfirmCancel(ticket.id)}
+                        onClick={() => handleCancelPreview(ticket.id)}
                         disabled={cancelling}
                         className="flex-1 text-xs text-red-500 border border-red-200 py-1.5 rounded-lg hover:bg-red-50 transition-colors text-center disabled:opacity-50"
                       >

@@ -1,4 +1,4 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+﻿import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
         Apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
       },
-      body: JSON.stringify({ p_registration_id, p_user_id: p_user_id ?? null }),
+      body: JSON.stringify({ p_registration_id, p_reason: "user_cancel", p_operator_id: p_user_id ?? null }),
     });
 
     const data = await res.json();

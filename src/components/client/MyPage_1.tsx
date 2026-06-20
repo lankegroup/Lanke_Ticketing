@@ -22,6 +22,7 @@ export default function MyPage() {
   const [subView, setSubView] = useState<SubView>('main');
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<{ penalty_amount: number; refund_amount: number; description: string; original_lcoin: number } | null>(null);
 
   const isEn = i18n.language === 'en';
 
@@ -78,17 +79,45 @@ export default function MyPage() {
   }
 
   async function handleCancelBooking(id: string) {
-    const { data, error } = await callEdgeFunction<{ success: boolean; error?: string }>('cancel-ticket', {
+    const { data, error } = await supabase.rpc('cancel_ticket', {
       p_registration_id: id,
-      p_user_id: user?.id,
+      p_reason: 'user_cancel',
+      p_operator_id: user?.id,
     });
-    if (error || !data?.success) {
-      showToast(t('operation_failed'), 'error');
+    setConfirmCancel(null);
+    setCancelPreview(null);
+    if (error || (data as any)?.success === false) {
+      const msg = (data as any)?.message || (data as any)?.error || t('operation_failed');
+      showToast(msg, 'error');
     } else {
-      showToast(t('cancel_success'), 'success');
+      const result = data as any;
+      const penaltyMsg = result.penalty_amount && result.penalty_amount > 0
+        ? isEn 
+          ? `Booking cancelled. Penalty: ${result.penalty_amount} LC, Refunded: ${result.refunded_lcoin} LC`
+          : `订单已取消。退票费：${result.penalty_amount} 兰克币，退回：${result.refunded_lcoin} 兰克币`
+        : isEn 
+          ? 'Booking cancelled, full refund processed'
+          : '订单已取消，全额退款已处理';
+      showToast(penaltyMsg, 'success');
       fetchTickets();
     }
-    setConfirmCancel(null);
+  }
+
+  async function handleCancelPreview(id: string) {
+    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
+    if (error || (data as any)?.success === false) {
+      console.log('get_cancel_preview failed:', { error, data });
+      showToast(isEn ? 'Failed to get refund info' : '获取退票信息失败', 'error');
+    } else {
+      const preview = data as any;
+      setCancelPreview({
+        penalty_amount: preview.penalty_amount || 0,
+        refund_amount: preview.refund_amount || 0,
+        description: preview.description || '',
+        original_lcoin: preview.original_lcoin || 0,
+      });
+      setConfirmCancel(id);
+    }
   }
 
   // ── Sub-views ──────────────────────────────────────────────────────────────
@@ -112,7 +141,7 @@ export default function MyPage() {
         loading={loading}
         isEn={isEn}
         onBack={() => setSubView('main')}
-        onCancelTicket={(id) => setConfirmCancel(id)}
+        onCancelTicket={(id) => handleCancelPreview(id)}
         onViewTicket={(tk) => setSelectedTicket(tk)}
         onRefresh={fetchTickets}
         showToast={showToast}
@@ -143,9 +172,15 @@ export default function MyPage() {
       {confirmCancel && (
         <ConfirmDialog
           title={t('cancel_booking')}
-          message={t('confirm_cancel_booking')}
+          message={cancelPreview && cancelPreview.penalty_amount > 0
+            ? (isEn
+              ? `This booking will incur a cancellation penalty of ${cancelPreview.penalty_amount} LC. Original: ${cancelPreview.original_lcoin} LC, Refund: ${cancelPreview.refund_amount} LC. ${cancelPreview.description}`
+              : `取消此订单将扣除退票费 ${cancelPreview.penalty_amount} 兰克币。原价：${cancelPreview.original_lcoin} 兰克币，退款：${cancelPreview.refund_amount} 兰克币。${cancelPreview.description}`)
+            : (isEn
+              ? 'Are you sure you want to cancel this booking? Full refund will be processed.'
+              : '确认取消该订单？将全额退款。')}
           onConfirm={() => handleCancelBooking(confirmCancel)}
-          onCancel={() => setConfirmCancel(null)}
+          onCancel={() => { setConfirmCancel(null); setCancelPreview(null); }}
         />
       )}
 
