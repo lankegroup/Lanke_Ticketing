@@ -7,7 +7,7 @@ import QRCodeView from './QRCodeView';
 import LoginModal from './LoginModal';
 import Toast from '../Toast';
 import ConfirmDialog from '../ConfirmDialog';
-import CancelConfirmModal, { type CancelPreviewData } from '../CancelConfirmModal';
+import CancelConfirmModal, { type RefundPreview } from '../CancelConfirmModal';
 import ChatView from './ChatView';
 import SeatMap from '../SeatMap';
 
@@ -357,7 +357,7 @@ function OrdersView({
   const { t } = useTranslation();
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
-  const [cancelPreview, setCancelPreview] = useState<CancelPreviewData | null>(null);
+  const [cancelPreview, setCancelPreview] = useState<RefundPreview | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [localToast, setLocalToast] = useState<{ msg: string; type: 'success' | 'error' | 'warning' } | null>(null);
@@ -402,14 +402,18 @@ function OrdersView({
     }
   }
 
-  async function handleCancel(id: string) {
+  async function handleCancel(id: string, customPenalty?: number) {
     setCancelling(true);
-    console.log('handleCancel called with id:', id);
-    const { data, error } = await supabase.rpc('cancel_ticket', {
+    console.log('handleCancel called with id:', id, 'customPenalty:', customPenalty);
+    const rpcParams: any = {
       p_registration_id: id,
       p_reason: 'user_cancel',
       p_operator_id: null,
-    });
+    };
+    if (customPenalty !== undefined) {
+      rpcParams.p_custom_penalty_amount = customPenalty;
+    }
+    const { data, error } = await supabase.rpc('cancel_ticket', rpcParams);
     setCancelling(false);
     setConfirmCancel(null);
     setCancelPreview(null);
@@ -419,36 +423,55 @@ function OrdersView({
       showLocalToast(msg, 'error');
     } else {
       const result = data as any;
-      const penaltyMsg = result.penalty_amount && result.penalty_amount > 0
-        ? isEn 
-          ? `Booking cancelled. Penalty: ${result.penalty_amount} LC, Refunded: ${result.refunded_lcoin} LC`
-          : `订单已取消。扣除手续费：${result.penalty_amount} 兰克币，退回：${result.refunded_lcoin} 兰克币`
-        : isEn 
-          ? 'Booking cancelled, full refund processed'
-          : '订单已取消，全额退款已处理';
-      showLocalToast(penaltyMsg, 'success');
+      let successMsg = '';
+      if (result.penalty_amount && result.penalty_amount > 0) {
+        const parts: string[] = [];
+        if (result.refunded_lcoin && result.refunded_lcoin > 0) {
+          parts.push(isEn ? `${result.refunded_lcoin} LC` : `${result.refunded_lcoin} 兰克币`);
+        }
+        if (result.refunded_rmb && result.refunded_rmb > 0) {
+          parts.push(isEn ? `¥${result.refunded_rmb}` : `¥${result.refunded_rmb}`);
+        }
+        const refundStr = parts.join(isEn ? ' and ' : '和');
+        successMsg = isEn
+          ? `Booking cancelled. Penalty: ${result.penalty_amount} LC. Refunded: ${refundStr}`
+          : `订单已取消。扣除手续费：${result.penalty_amount} 兰克币。已退回：${refundStr}`;
+      } else {
+        successMsg = isEn ? 'Booking cancelled, full refund processed' : '订单已取消，全额退款已处理';
+      }
+      showLocalToast(successMsg, 'success');
       onRefresh();
     }
   }
 
   async function handleCancelPreview(id: string) {
-    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
+    console.log('handleCancelPreview called with id:', id);
+    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id, p_role: 'user' });
     if (error || (data as any)?.success === false) {
       console.log('get_cancel_preview failed:', { error, data });
-      showLocalToast(isEn ? 'Failed to get refund info' : '获取退票信息失败', 'error');
+      const msg = (data as any)?.message || (isEn ? 'Failed to get refund info' : '获取退票信息失败');
+      showLocalToast(msg, 'error');
     } else {
       const preview = data as any;
       setCancelPreview({
-        original_lcoin: preview.original_lcoin || 0,
-        original_cash: preview.original_cash || 0,
-        penalty_rate: preview.penalty_rate || 0,
-        penalty_amount: preview.penalty_amount || 0,
-        refund_amount: preview.refund_amount || 0,
-        description: preview.description || '',
-        hours_before: preview.hours_before || 0,
-        has_cash_payment: preview.has_cash_payment || false,
+        success: preview.success || false,
+        registration_id: preview.registration_id || '',
         session_name: preview.session_name || '',
         ticket_code: preview.ticket_code || '',
+        payment_type: (preview.payment_type as 'lcoin' | 'rmb' | 'mixed') || 'lcoin',
+        rmb_pay_amount: preview.rmb_pay_amount || 0,
+        lcoin_pay_amount: preview.lcoin_pay_amount || 0,
+        total_amount: preview.total_amount || 0,
+        penalty_rate: preview.penalty_rate || 0,
+        penalty_amount: preview.penalty_amount || 0,
+        lcoin_exchange_rate: preview.lcoin_exchange_rate || 1,
+        refund_lcoin_amount: preview.refund_lcoin_amount || 0,
+        refund_rmb_amount: preview.refund_rmb_amount || 0,
+        description: preview.description || '',
+        hours_before: preview.hours_before || 0,
+        can_release_seat: preview.can_release_seat || false,
+        refund_fee: preview.refund_fee || 0,
+        actual_refund_amount: preview.actual_refund_amount || 0,
       });
       setConfirmCancel(id);
     }
@@ -479,12 +502,13 @@ function OrdersView({
         />
       )}
       {localToast && <Toast message={localToast.msg} type={localToast.type} onClose={() => setLocalToast(null)} />}
-      {confirmCancel && (
+      {confirmCancel && cancelPreview && (
         <CancelConfirmModal
           role="user"
+          title={isEn ? 'Cancel Order' : '取消订单'}
           preview={cancelPreview}
           isEn={isEn}
-          onConfirm={() => handleCancel(confirmCancel)}
+          onConfirm={(customPenalty) => handleCancel(confirmCancel, customPenalty)}
           onCancel={() => { setConfirmCancel(null); setCancelPreview(null); }}
         />
       )}

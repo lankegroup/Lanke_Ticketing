@@ -8,7 +8,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { renderTicketToCanvas, downloadTicket, formatOrderTime } from '../../lib/ticketGenerator';
 import ConfirmDialog from '../ConfirmDialog';
 import Toast from '../Toast';
-import CancelConfirmModal, { type CancelPreviewData } from '../CancelConfirmModal';
+import CancelConfirmModal, { type RefundPreview } from '../CancelConfirmModal';
 import PrintConfirmModal, { PrintConfirmResult } from './PrintConfirmModal';
 import ReprintConfirmModal from './ReprintConfirmModal';
 import SessionDetailView from './SessionDetailView';
@@ -82,7 +82,7 @@ function RegistrationsList() {
   const [historyExpanded, setHistoryExpanded] = useState(false);
 
   // Refund preview modal
-  const [refundPreview, setRefundPreview] = useState<CancelPreviewData & { registration_id: string } | null>(null);
+  const [refundPreview, setRefundPreview] = useState<RefundPreview | null>(null);
   const [refundSaving, setRefundSaving] = useState(false);
 
   const printCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -239,73 +239,75 @@ function RegistrationsList() {
   }
 
   async function showRefundPreview(id: string) {
-    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id });
+    console.log('showRefundPreview called with id:', id);
+    const { data, error } = await supabase.rpc('get_cancel_preview', { p_registration_id: id, p_role: 'admin' });
     if (error || (data as any)?.success === false) {
-      showToast('获取退票信息失败', 'error');
+      console.log('get_cancel_preview failed:', { error, data });
+      const msg = (data as any)?.message || '获取退票信息失败';
+      showToast(msg, 'error');
       return;
     }
-    setRefundPreview(data as any);
+    const preview = data as any;
+    setRefundPreview({
+      success: preview.success || false,
+      registration_id: preview.registration_id || '',
+      session_name: preview.session_name || '',
+      ticket_code: preview.ticket_code || '',
+      payment_type: (preview.payment_type as 'lcoin' | 'rmb' | 'mixed') || 'lcoin',
+      rmb_pay_amount: preview.rmb_pay_amount || 0,
+      lcoin_pay_amount: preview.lcoin_pay_amount || 0,
+      total_amount: preview.total_amount || 0,
+      penalty_rate: preview.penalty_rate || 0,
+      penalty_amount: preview.penalty_amount || 0,
+      lcoin_exchange_rate: preview.lcoin_exchange_rate || 1,
+      refund_lcoin_amount: preview.refund_lcoin_amount || 0,
+      refund_rmb_amount: preview.refund_rmb_amount || 0,
+      description: preview.description || '',
+      hours_before: preview.hours_before || 0,
+      can_release_seat: preview.can_release_seat || false,
+      refund_fee: preview.refund_fee || 0,
+      actual_refund_amount: preview.actual_refund_amount || 0,
+    });
     setConfirm(null);
   }
 
   async function confirmCancelReg(customPenaltyAmount?: number) {
     if (!refundPreview) return;
     setRefundSaving(true);
+    console.log('confirmCancelReg called:', { registration_id: refundPreview.registration_id, customPenaltyAmount });
 
-    // If admin specified custom penalty, update the registration's refund_penalty_applied
-    // and adjust the refund transaction accordingly
     const rpcParams: any = {
       p_registration_id: refundPreview.registration_id,
       p_reason: 'admin_cancel',
       p_operator_id: user?.id,
     };
 
-    // If custom penalty is specified, we need to handle it specially
-    // For now, call cancel_ticket first, then if custom penalty differs, adjust
+    if (customPenaltyAmount !== undefined) {
+      rpcParams.p_custom_penalty_amount = customPenaltyAmount;
+    }
+
     const { data, error } = await supabase.rpc('cancel_ticket', rpcParams);
     if (error || (data as any)?.success === false) {
-      const errMsg = error ? (typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)) : '';
-      const funcErr = (data as any)?.error || '';
-      showToast(errMsg || funcErr || t('operation_failed'), 'error');
+      console.log('cancel_ticket failed:', { error, data });
+      const errMsg = (data as any)?.message || (error ? (typeof error === 'object' ? (error.message || JSON.stringify(error)) : String(error)) : '') || t('operation_failed');
+      showToast(errMsg, 'error');
       setRefundSaving(false);
       setRefundPreview(null);
       fetchData();
       return;
     }
 
-    // If admin set a custom penalty different from default, create an adjustment transaction
-    const defaultPenalty = refundPreview.penalty_amount;
-    if (customPenaltyAmount !== undefined && customPenaltyAmount !== defaultPenalty) {
-      const diff = customPenaltyAmount - defaultPenalty;
-      if (diff !== 0) {
-        // Adjust user's balance
-        try {
-          await supabase.rpc('create_lcoin_transaction', {
-            p_user_id: refundPreview.registration_id, // This won't work, we need the actual user_id
-            p_transaction_type: diff > 0 ? 'fee' : 'adjust_add',
-            p_amount: Math.abs(diff),
-            p_related_registration_id: refundPreview.registration_id,
-            p_session_id: null,
-            p_ticket_type: null,
-            p_admin_id: user?.id,
-            p_service_fee: 0,
-            p_operator_name: 'system',
-            p_payment_method: null,
-            p_description: `Admin adjusted refund penalty: ${diff > 0 ? '+' : '-'}${Math.abs(diff)} LC`,
-            p_currency_type: 'lcoin',
-          });
-        } catch (adjustErr) {
-          console.error('Failed to adjust penalty:', adjustErr);
-        }
-      }
-    }
-
     const result = data as any;
     let msg = t('cancel_success');
-    if (result.pending_cash_refund > 0) {
-      msg += `（蓝克币已退回 ${result.refunded_lcoin} LC，现金部分需人工处理）`;
-    } else if (result.refunded_lcoin > 0) {
-      msg += `（已退回 ${result.refunded_lcoin} LC）`;
+    const parts: string[] = [];
+    if (result.refunded_lcoin && result.refunded_lcoin > 0) {
+      parts.push(`${result.refunded_lcoin} LC`);
+    }
+    if (result.refunded_rmb && result.refunded_rmb > 0) {
+      parts.push(`¥${result.refunded_rmb}`);
+    }
+    if (parts.length > 0) {
+      msg += `（已退回 ${parts.join('和')}）`;
     }
     showToast(msg);
     setRefundPreview(null);
